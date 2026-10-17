@@ -182,6 +182,7 @@ class WeatherRenderer(private val density: Float) {
                 if (geese.active) return FAST
                 when (wildlife.motion) { 2 -> return FAST; 1 -> slow = true }
             }
+            Scenes.GARDEN -> if (current?.gardenMotion == 2) return FAST
             Scenes.JHB, Scenes.ALTRON -> {
                 if (pigeons.flying) return FAST
                 if (jets.active) slow = true
@@ -252,6 +253,9 @@ class WeatherRenderer(private val density: Float) {
 
     /** Debug: a 737 over Jhb right away. */
     fun launchJetNow() = jets.launch()
+
+    /** Debug and demo: a Garden Route visitor now (train, jump, dolphins, jetski, breach). */
+    fun launchGardenNow(what: String) = current?.gardenNow(what)
 
     /** Debug: the lions arrive on the savanna right away. */
     fun launchLionsNow(fast: Boolean = false) = wildlife.lionsNow(fast)

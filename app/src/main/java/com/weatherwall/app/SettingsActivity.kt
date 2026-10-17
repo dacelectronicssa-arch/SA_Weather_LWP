@@ -74,7 +74,7 @@ class SettingsActivity : Activity() {
             }
             // `--ei fps 30|24|15` sets the top frame rate; `--ei fps 0` picks Ultra power saver.
             if (intent.hasExtra("fps")) prefs.edit().putInt(Prefs.KEY_MAX_FPS, intent.getIntExtra("fps", Prefs.DEFAULT_MAX_FPS)).apply()
-            // `--es scene cape_town|savanna|jhb_city|altron_hq` switches the landscape.
+            // `--es scene cape_town|savanna|jhb_city|altron_hq|garden_route` switches the landscape.
             intent.getStringExtra("scene")?.let { prefs.edit().putString(Prefs.KEY_SCENE, it).apply() }
             // `--ez geese true` sends a skein of geese over the savanna now.
             if (intent.getBooleanExtra("geese", false)) {
@@ -231,6 +231,7 @@ class SettingsActivity : Activity() {
         SceneOption(Scenes.SAVANNA, "Savanna"),
         SceneOption(Scenes.JHB, "Jhb City"),
         SceneOption(Scenes.ALTRON, "Altron"),
+        SceneOption(Scenes.GARDEN, "Garden Route"),
     )
     private val sceneThumbs = HashMap<String, ImageView>()
     private val sceneFrames = HashMap<String, View>()

@@ -532,6 +532,8 @@ class AnimalArt {
     private var detailNow = false
 
     fun draw(cv: Canvas, sp: Species, pose: Pose, detail: Boolean) {
+        // Start every animal from the same paint state, so a frame never depends on what was drawn before it.
+        p.reset(); p.isAntiAlias = true; p.strokeCap = Paint.Cap.ROUND
         coatVar = pose.coat
         detailNow = detail
         when (sp) {

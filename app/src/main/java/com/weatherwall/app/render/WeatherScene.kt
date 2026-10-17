@@ -192,6 +192,7 @@ class WeatherScene(
             Scenes.SAVANNA -> SavannaLandscape(cfg, width, height, wildlife)
             Scenes.JHB -> JhbCityLandscape(cfg, width, height)
             Scenes.ALTRON -> AltronLandscape(cfg, width, height)
+            Scenes.GARDEN -> GardenRouteLandscape(cfg, width, height, dp)
             else -> CapeTownLandscape(cfg, width, height, dp)
         }
 
@@ -286,6 +287,21 @@ class WeatherScene(
 
     /** Rooftop spots for pigeons to land on (Jhb City and the Altron head office). */
     fun roofSpots(gap: Float): List<FloatArray> = landscape.roofSpots(gap)
+
+    /** Garden Route: how fast its own visitors move (2 = something quick on screen). */
+    val gardenMotion get() = (landscape as? GardenRouteLandscape)?.motion ?: 0
+
+    /** Debug and demo: start one of the Garden Route's visitors now. */
+    fun gardenNow(what: String) {
+        val g = landscape as? GardenRouteLandscape ?: return
+        when (what) {
+            "train" -> g.launchTrain()
+            "jump" -> g.launchJump()
+            "dolphins" -> g.launchDolphins()
+            "jetski" -> g.launchJetski()
+            "breach" -> g.launchBreach()
+        }
+    }
 
     fun update(dt: Float) {
         time += dt

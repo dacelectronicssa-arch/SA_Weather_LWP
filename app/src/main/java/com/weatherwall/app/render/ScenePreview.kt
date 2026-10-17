@@ -11,6 +11,7 @@ object ScenePreview {
         Scenes.SAVANNA -> 0.62f
         Scenes.JHB -> 0.52f
         Scenes.ALTRON -> 0.7f
+        Scenes.GARDEN -> 0.7f
         else -> 0.62f
     }
 

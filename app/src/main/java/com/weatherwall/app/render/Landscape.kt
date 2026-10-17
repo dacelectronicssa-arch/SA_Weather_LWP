@@ -32,12 +32,14 @@ object Scenes {
     const val SAVANNA = "savanna"
     const val JHB = "jhb_city"
     const val ALTRON = "altron_hq"
+    const val GARDEN = "garden_route"
 
     /** Where the land meets the sky, as a fraction of screen height. */
     fun horizon(scene: String) = when (scene) {
         SAVANNA -> SavannaDesign.HORIZON
         JHB -> JhbDesign.HORIZON
         ALTRON -> AltronDesign.HORIZON
+        GARDEN -> GardenDesign.HORIZON
         else -> 0.72f
     }
 }

@@ -32,7 +32,7 @@ object Prefs {
 
     fun ultraOnBatterySaver(ctx: Context) = get(ctx).getBoolean(KEY_ULTRA_ON_BATTERY_SAVER, true)
 
-    /** Which landscape to show: Scenes.CAPE_TOWN (default), SAVANNA, JHB or ALTRON. */
+    /** Which landscape to show: Scenes.CAPE_TOWN (default), SAVANNA, JHB, ALTRON or GARDEN. */
     const val KEY_SCENE = "scene"
 
     /** Debug builds only: hours to shift the sky clock by. */

@@ -23,6 +23,7 @@ State as of 14 October 2026. Read this before starting work in a new chat.
 | `Jhb-City` | All three scenes |
 | **`Battery-Optimize`** | **The current working branch.** All three scenes, plus the battery work and every feature listed below. Pushed and clean. |
 | `Altron-HQ` | All three scenes plus a fourth, **Altron — head office** (`render/AltronLandscape.kt`), branched from the cloud-levels work on GitHub. |
+| `Garden-Route` | Everything on `Altron-HQ` plus a fifth scene, **Garden Route** (`render/GardenRouteLandscape.kt`): Bloukrans Bridge from inside the gorge. |
 | `Rugby` | Has no rugby work: it points at an older `Battery-Optimize` commit. A rugby scene was planned and then cancelled. Whether to delete the branch is still open, so ask the user. |
 
 The user asks for a new branch for each new scene.
@@ -69,6 +70,15 @@ The user asks for a new branch for each new scene.
     - Brush dabs along the hair, warm rim light on the back, a darker belly edge and per-animal coat variation (`Pose.coat`).
     - Detail: a striped zebra mane with shadow stripes, a shaggy wildebeest mane and beard, mottled elephants with red dust on their legs, varied giraffe patches and lion mane strands.
     - Brush dabs only appear on near animals (`detail`); everything fades flat for dusk silhouettes (`shading`).
+- **Garden Route** (`GardenRouteLandscape.kt`, branch `Garden-Route`), designed in the in-chat preview first:
+  - **View:** Bloukrans Bridge from inside the gorge, just below deck height. The bridge is a true 3D projection (`proj`), swung 36° so the near end runs off the top-left. The landscape is laid out in the preview's own frame (horizon at 0.405, a 760-wide canvas scaled by `k`) and drawn `dy` lower, so it starts at `GardenDesign.HORIZON` = 0.655 under open sky.
+  - **Bakes:** two bitmaps, the sea (with shallows, inlet, beach and river) and the land plus bridge (gorge walls, rocks, abandoned weedy deck, Skywalk cage, jump platform, night lights). They are rebaked only when the light changes (`key()`).
+  - **Light:** day, golden-hour and night palettes blend with twilight; overcast, rain or fog grey it; sun or moon glitter follows `setGlint`.
+  - **Live:** surf washes along every shore and swells funnel up the inlet. The bay has southern right whales (surfacing, V-blow, flukes, a breach every third cycle), a dolphin pod and a jetski (each comes and goes), a whale-watching catamaran, a ski-boat and yachts (daytime only), and at night navigation lights and a chokka boat.
+  - **Under the deck:** Skywalk walkers, and a bungy jump every 2–5 minutes in daytime dry weather.
+  - **Choo Tjoe:** the Outeniqua Choo Tjoe steams across from the right every 4–8 minutes (`GardenDesign`), drawn 1.7× life size, with chuffing smoke, cylinder steam and a whistle plume.
+  - **Frame rate:** `motion` is 2 (FAST) only while a quick visitor is on screen; otherwise the calm rate.
+  - **Debug and demo:** `renderer.launchGardenNow("train"|"jump"|"dolphins"|"jetski"|"breach")`; the demo tour plays all of them.
 - **Jhb City** (`JhbCityLandscape.kt`):
   - **Light:**
     - Sunlit faces and shaded sides follow `setLight`, and buildings cast shadows onto those behind (`castShadow`, painted with SRC_ATOP so they never touch the sky).

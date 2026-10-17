@@ -260,6 +260,22 @@ class WeatherWallpaperService : WallpaperService() {
                 30_000L to weather("RAIN:day", afternoon),
                 38_000L to weather("THUNDERSTORM:day", afternoon),
                 46_000L to night,
+            ) else if (scene == Scenes.GARDEN) listOf<Pair<Long, () -> Unit>>(
+                // Garden Route: the Choo Tjoe steams across, a whale breaches, a bungy jump,
+                // dolphins and the jetski in the bay, the weather rolling in off the sea, then night.
+                0L to weather("CLEAR:day", afternoon),
+                1_000L to { renderer.launchGardenNow("train") },
+                4_000L to { renderer.launchGardenNow("breach") },
+                9_000L to { renderer.launchGardenNow("jump") },
+                10_000L to weather("PARTLY_CLOUDY:day", afternoon),
+                13_000L to { renderer.launchGardenNow("dolphins") },
+                15_000L to { renderer.launchGardenNow("jetski") },
+                18_000L to weather("CLOUDY:day", afternoon),
+                22_000L to weather("FOG:day", afternoon),
+                28_000L to weather("RAIN:day", afternoon),
+                36_000L to weather("THUNDERSTORM:day", afternoon),
+                44_000L to night,
+                46_000L to { renderer.launchGardenNow("train") },
             ) else if (scene == Scenes.JHB) listOf<Pair<Long, () -> Unit>>(
                 // Jhb City: a pigeon flock's full visit (arrive, wheel, rooftops, leave) spans the
                 // minute; 737s in different liveries keep crossing; hadedas twice.
