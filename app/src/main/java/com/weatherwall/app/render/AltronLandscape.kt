@@ -180,6 +180,44 @@ class AltronLandscape(
         bakedKey = key()
     }
 
+    // ---- Perches for the pigeons -------------------------------------------------------------
+
+    /**
+     * Pigeons settle along both rooflines, the silver block's roof, the carport's front beam and
+     * the entrance canopy's beams: points [gap] screen px apart on each visible edge.
+     */
+    override fun roofSpots(gap: Float): List<FloatArray> {
+        val edges = ArrayList<FloatArray>() // photo-px polylines (x, y pairs)
+        val x0 = endX
+        edges += floatArrayOf(x0, onLeft(x0, d.ROOF), d.CORNER_X, d.ROOF)
+        edges += floatArrayOf(d.CORNER_X, d.ROOF, BLOCK_X, onRight(BLOCK_X, d.ROOF))
+        edges += floatArrayOf(BLOCK_X, 723f, 732f, onBlock(732f, 723f))
+        edges += floatArrayOf(290f, 882.8f, 10f, 904.2f)              // carport front beam
+        edges += floatArrayOf(325f, 887.8f, 477f, 853.8f)             // canopy's rising beam
+        edges += floatArrayOf(322f, 847.6f, 477f, 847.6f)             // portal top rail
+        edges += floatArrayOf(478f, 854.6f, 583f, 878.6f, 638f, 890.6f, 680f, 899.6f, 747f, 911.6f) // plate edges
+        val out = ArrayList<FloatArray>()
+        for (e in edges) {
+            val pts = ArrayList<Float>()
+            var i = 0
+            while (i < e.size - 2) {
+                val ax = ox + e[i] * s; val ay = sy(e[i + 1])
+                val bx = ox + e[i + 2] * s; val by = sy(e[i + 3])
+                val len = kotlin.math.hypot(bx - ax, by - ay)
+                var t = gap / 2f
+                while (t < len) {
+                    val f = t / len
+                    val px = ax + (bx - ax) * f
+                    if (px > gap && px < wf - gap) { pts += px; pts += ay + (by - ay) * f }
+                    t += gap
+                }
+                i += 2
+            }
+            if (pts.size >= 6) out += pts.toFloatArray()
+        }
+        return out
+    }
+
     override fun draw(canvas: Canvas, onWater: ((Canvas) -> Unit)?) {
         if (bmp == null || key() != bakedKey) bake()
         canvas.drawBitmap(bmp!!, 0f, sy(TOP), null)

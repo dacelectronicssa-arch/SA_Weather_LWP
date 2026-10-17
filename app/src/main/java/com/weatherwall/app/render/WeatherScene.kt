@@ -284,8 +284,8 @@ class WeatherScene(
 
     // ========================================================================
 
-    /** Rooftop spots for pigeons to land on (Jhb City only). */
-    fun roofSpots(gap: Float): List<FloatArray> = (landscape as? JhbCityLandscape)?.roofSpots(gap) ?: emptyList()
+    /** Rooftop spots for pigeons to land on (Jhb City and the Altron head office). */
+    fun roofSpots(gap: Float): List<FloatArray> = landscape.roofSpots(gap)
 
     fun update(dt: Float) {
         time += dt

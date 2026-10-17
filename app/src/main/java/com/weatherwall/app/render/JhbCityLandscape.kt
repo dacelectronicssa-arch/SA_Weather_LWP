@@ -546,7 +546,7 @@ class JhbCityLandscape(
      * Free spots along every visible rooftop, [gap] apart: one array of (x, y) pairs per roof.
      * A spot counts only if no building drawn later covers it and it's above the tree line.
      */
-    fun roofSpots(gap: Float): List<FloatArray> {
+    override fun roofSpots(gap: Float): List<FloatArray> {
         val order = ArrayList<B>().apply { addAll(main); addAll(mid); addAll(near); addAll(low) }
         val treeTop = hf * (1f - JhbDesign.TREE_BAND) - gap
         val out = ArrayList<FloatArray>()

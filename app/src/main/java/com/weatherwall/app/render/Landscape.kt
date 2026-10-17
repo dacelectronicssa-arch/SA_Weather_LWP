@@ -18,6 +18,9 @@ interface Landscape {
     fun setTwilight(amount: Float)
     fun setLight(direction: Float, intensity: Float) {}
     fun setGlint(x: Float, strength: Float) {}
+
+    /** Free perches for pigeons, [gap] apart: one array of (x, y) pairs per roof or ledge. */
+    fun roofSpots(gap: Float): List<FloatArray> = emptyList()
 }
 
 /** Which scene the wallpaper shows. */

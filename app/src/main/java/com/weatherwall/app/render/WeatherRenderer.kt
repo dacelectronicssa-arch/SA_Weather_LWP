@@ -182,7 +182,7 @@ class WeatherRenderer(private val density: Float) {
                 if (geese.active) return FAST
                 when (wildlife.motion) { 2 -> return FAST; 1 -> slow = true }
             }
-            Scenes.JHB -> {
+            Scenes.JHB, Scenes.ALTRON -> {
                 if (pigeons.flying) return FAST
                 if (jets.active) slow = true
             }
@@ -295,7 +295,7 @@ class WeatherRenderer(private val density: Float) {
         }
         geeseWereActive = geese.active
         geese.update(dt)
-        if (config?.scene == Scenes.JHB) {
+        if (cityTraffic()) {
             // Mostly one jet at a time, now and then two, with a short clear sky in between.
             val n = jets.count
             if (n == 0 && (jetsBefore > 0 || nextJetAt == Long.MAX_VALUE)) nextJetAt = now + between(3, 10)
@@ -305,7 +305,7 @@ class WeatherRenderer(private val density: Float) {
             }
             jetsBefore = jets.count
         }
-        if (config?.scene == Scenes.JHB) {
+        if (cityTraffic()) {
             if (pigeonsWereActive && !pigeons.active) nextPigeonsAt = now + between(15, 45)
             if (!pigeons.active && now >= nextPigeonsAt) {
                 if (day) pigeons.launch(current?.roofSpots(pigeons.roofGap) ?: emptyList()) else nextPigeonsAt = now + between(60, 120)
@@ -375,8 +375,11 @@ class WeatherRenderer(private val density: Float) {
         plane.draw(canvas)
         birds.draw(canvas)
         if (config?.scene == Scenes.SAVANNA) geese.draw(canvas)
-        if (config?.scene == Scenes.JHB) { pigeons.draw(canvas); jets.draw(canvas) }
+        if (cityTraffic()) { pigeons.draw(canvas); jets.draw(canvas) }
     }
+
+    /** Scenes with Johannesburg's 737s overhead and pigeons on the rooftops. */
+    private fun cityTraffic() = config?.scene.let { it == Scenes.JHB || it == Scenes.ALTRON }
 
     /** Scenes where the fireworks go up behind the landmark instead of in front of everything. */
     private fun fireworksBehind() = config?.scene == Scenes.ALTRON

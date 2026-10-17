@@ -208,8 +208,11 @@ class WeatherWallpaperService : WallpaperService() {
                 // Altron head office: the sky's weather over the building, hadedas, and the
                 // lights coming on for the night.
                 0L to weather("CLEAR:day", afternoon),
+                500L to { renderer.launchPigeonsNow() },
+                2_000L to { renderer.launchJetNow() },
                 3_000L to { renderer.launchBirdsNow() },
                 8_000L to weather("PARTLY_CLOUDY:day", afternoon),
+                12_000L to { renderer.launchJetNow() },
                 16_000L to weather("CLOUDY:day", afternoon),
                 20_500L to weather("OVERCAST:day", afternoon),
                 24_000L to weather("FOG:day", afternoon),
