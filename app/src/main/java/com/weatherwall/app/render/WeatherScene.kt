@@ -341,7 +341,11 @@ class WeatherScene(
         }
     }
 
-    fun draw(canvas: Canvas, onWater: ((Canvas) -> Unit)? = null) {
+    /** Screen y of the top of the land's highest landmark. */
+    val skylineY get() = landscape.tableTopY
+
+    /** [behindLand] draws between the sky and the landscape (e.g. fireworks behind a building). */
+    fun draw(canvas: Canvas, onWater: ((Canvas) -> Unit)? = null, behindLand: ((Canvas) -> Unit)? = null) {
         canvas.drawRect(0f, 0f, wf, hf, skyPaint)
         if (flash > 0f) {
             flashPaint.alpha = (flash * 90).toInt()
@@ -375,6 +379,7 @@ class WeatherScene(
         if (boltLife > 0f) drawBolt(canvas)
         fairClouds?.draw(canvas, twilight)
         storm?.drawSky(canvas, time, flash)
+        behindLand?.invoke(canvas)
         landscape.draw(canvas, onWater)
         if (fogN > 0) drawFog(canvas)
         if (rainN > 0) drawRain(canvas)

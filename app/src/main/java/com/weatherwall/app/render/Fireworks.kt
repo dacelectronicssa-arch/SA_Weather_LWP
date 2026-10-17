@@ -169,6 +169,8 @@ class Fireworks {
     /** Where the rockets go up from (the skyline / shore), and whether there's water to reflect in. */
     var groundY = 0f
     var water = false
+    /** If set, bursts stay above this screen y (e.g. a building's roofline the rockets rise behind). */
+    var burstBottom = Float.NaN
 
     val active get() = holiday != null || rockets.isNotEmpty() || sparks.isNotEmpty()
 
@@ -207,7 +209,8 @@ class Fireworks {
     private fun launch(hol: Holiday) {
         val x = w * (0.15f + r() * 0.7f)
         // Bursts sit between the top of the sky and a little above the skyline.
-        val ty = h * 0.14f + r() * (groundY - h * 0.28f).coerceAtLeast(h * 0.1f) * 0.75f
+        val ty = if (burstBottom.isNaN()) h * 0.14f + r() * (groundY - h * 0.28f).coerceAtLeast(h * 0.1f) * 0.75f
+            else h * 0.12f + r() * (burstBottom - h * 0.12f).coerceAtLeast(h * 0.05f)
         val vy = -sqrt(2f * 120f * k * (groundY - ty))
         rockets += Rocket(x, groundY - 4f * k, (r() - 0.5f) * 12f * k, vy, ty,
             hol.colours[rnd.nextInt(hol.colours.size)], hol.colours[rnd.nextInt(hol.colours.size)], hol.bursts[rnd.nextInt(hol.bursts.size)])

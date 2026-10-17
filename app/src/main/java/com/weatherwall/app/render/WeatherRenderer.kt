@@ -217,6 +217,8 @@ class WeatherRenderer(private val density: Float) {
             hour == 0 && cal.get(java.util.Calendar.MINUTE) < 5)
         fireworks.groundY = height * Scenes.horizon(cfg.scene)
         fireworks.water = cfg.scene == Scenes.CAPE_TOWN
+        // At the head office the rockets rise behind the building and burst above its roof.
+        fireworks.burstBottom = if (fireworksBehind()) (current?.skylineY ?: height * 0.5f) - height * 0.06f else Float.NaN
     }
 
     /** On a holiday the banner plane tows a greeting (e.g. "Merry Christmas!") instead of its advert. */
@@ -359,21 +361,26 @@ class WeatherRenderer(private val density: Float) {
     fun draw(canvas: Canvas) {
         val cur = current ?: run { canvas.drawColor(Color.BLACK); return }
         val prev = previous
+        val behind = if (fireworksBehind()) drawFireworks else null
         if (prev == null) {
-            cur.draw(canvas, drawShip)
+            cur.draw(canvas, drawShip, behind)
         } else {
-            prev.draw(canvas, drawShip)
+            prev.draw(canvas, drawShip, behind)
             canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), (fade * 255).toInt())
-            cur.draw(canvas, drawShip)
+            cur.draw(canvas, drawShip, behind)
             canvas.restore()
         }
-        fireworks.draw(canvas)
+        if (behind == null) fireworks.draw(canvas)
         if (config?.scene == Scenes.CAPE_TOWN) flypast.draw(canvas)
         plane.draw(canvas)
         birds.draw(canvas)
         if (config?.scene == Scenes.SAVANNA) geese.draw(canvas)
         if (config?.scene == Scenes.JHB) { pigeons.draw(canvas); jets.draw(canvas) }
     }
+
+    /** Scenes where the fireworks go up behind the landmark instead of in front of everything. */
+    private fun fireworksBehind() = config?.scene == Scenes.ALTRON
+    private val drawFireworks: (Canvas) -> Unit = { fireworks.draw(it) }
 
     private fun busy() = plane.active || boatsOnWater() > 0 || sea.active || birds.active
 
