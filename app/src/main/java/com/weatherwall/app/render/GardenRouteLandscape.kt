@@ -459,168 +459,14 @@ class GardenRouteLandscape(
             val u = q.age / q.life
             val a = (1f - u).pow(1.4f) * (if (q.smoke) 0.75f else 0.7f)
             puff(c, q.x, q.y, q.r, a, if (q.smoke) (1f - u) * 0.9f else 0f)
+            if (q.smoke) puff(c, q.x - q.r * 0.2f, q.y - q.r * 0.3f, q.r * 0.65f, a * (if (night) 0.12f else 0.3f), (1f - u) * 0.35f) // light on its top
         }
     }
 
-    // ---- Life in the bay -------------------------------------------------------------------------
-    // Size from the distance a water line lies at: about (y - hz) / 200 px per metre, scaled up.
+    // ---- Life in the bay (see GardenBay) ------------------------------------------------------------
 
-    private fun ppm(y: Float, ex: Float) = max(0.05f, (y - hz) / (200f * k)) * ex * k
-
-    private class Whale(var x: Float, val y: Float, var dir: Float, var t: Float, var cycle: Int)
-    private val whales = listOf(Whale(w * 0.3f, hz + 120f * k, 1f, 2f, 0), Whale(w * 0.62f, hz + 195f * k, -1f, 9f, 1))
-    private class Boat(val kind: Int, var x: Float, val y: Float, var dir: Float, val v: Float, var t: Float = 0f)
-    private val boats = listOf(
-        Boat(CAT, w * 0.6f, hz + 128f * k, -1f, 2f), Boat(SKI, w * 0.1f, hz + 180f * k, 1f, 5f),
-        Boat(YACHT, w * 0.45f, hz + 70f * k, 1f, 1.6f), Boat(YACHT, w * 0.85f, hz + 95f * k, -1f, 2f),
-    )
-    private val jetski = Boat(JETSKI, w * 0.5f, hz + 225f * k, 1f, 14f)
-    private var podX = w * 0.2f
-    private val podY = hz + 205f * k
-    private var podDir = 1f
-    private var podT = 0f
-    // The jetski and the dolphins come and go (each is about for a minute or so).
-    private var jetskiFor = 0f
-    private var jetskiIn = 30f + rnd.nextFloat() * 120f
-    private var podFor = 0f
-    private var podIn = 10f + rnd.nextFloat() * 60f
+    private val bay = GardenBay(w, hz, k, foc) { c, x, y, r, a, d -> puff(c, x, y, r, a, d) }
     private val daytime get() = !night
-
-    private fun wake(c: Canvas, x: Float, y: Float, s: Float, dir: Float, len: Float, a: Float) {
-        p.style = Paint.Style.STROKE; p.strokeWidth = max(1f, s * 0.5f); p.color = withAlpha(Color.WHITE, (a * 255).toInt())
-        c.drawLine(x, y, x - dir * len * s, y - s * 1.2f, p)
-        c.drawLine(x, y + s * 0.3f, x - dir * len * s, y + s * 1.8f, p)
-        p.style = Paint.Style.FILL
-    }
-
-    private fun wrap(x: Float) = if (x > w + 80f * k) -80f * k else if (x < -80f * k) w + 80f * k else x
-
-    private fun updateBay(dt: Float) {
-        for (wh in whales) {
-            val s = ppm(wh.y, 5f)
-            val before = wh.t % 16f
-            wh.t += dt
-            if (wh.t % 16f < before) wh.cycle++
-            wh.x = wrap(wh.x + wh.dir * 1.2f * s * dt)
-        }
-        for (b in boats) { val s = ppm(b.y, 4.5f); b.x = wrap(b.x + b.dir * b.v * s * 0.25f * dt) }
-        if (jetskiFor > 0f) {
-            jetskiFor -= dt; jetski.t += dt
-            val s = ppm(jetski.y, 6f)
-            jetski.x += jetski.dir * jetski.v * s * 0.25f * dt
-            if (jetski.x > w * 0.8f) jetski.dir = -1f; if (jetski.x < w * 0.25f) jetski.dir = 1f
-        } else if (daytime) { jetskiIn -= dt; if (jetskiIn <= 0f) { jetskiFor = 60f + rnd.nextFloat() * 40f; jetskiIn = 240f + rnd.nextFloat() * 360f } }
-        if (podFor > 0f) {
-            podFor -= dt; podT += dt
-            val s = ppm(podY, 6f)
-            podX += podDir * 4f * s * dt
-            if (podX > w * 0.85f) podDir = -1f; if (podX < w * 0.15f) podDir = 1f
-        } else if (daytime) { podIn -= dt; if (podIn <= 0f) { podFor = 50f + rnd.nextFloat() * 40f; podIn = 150f + rnd.nextFloat() * 240f } }
-    }
-
-    private fun drawBay(c: Canvas) {
-        val dark = if (night) 0xFF0C1118.toInt() else 0xFF1D2228.toInt()
-        for (wh in whales) {
-            val s = ppm(wh.y, 5f); val u = wh.t % 16f
-            val breach = wh.cycle % 3 == 2
-            if (breach && u < 3.2f) { // out of the water at a steep angle, then crashing back
-                val kk = u / 3.2f; val rise = sin(kk * PI.toFloat())
-                c.save(); c.translate(wh.x, wh.y); c.rotate(Math.toDegrees((-wh.dir * (1.1f - kk * 1.6f)).toDouble()).toFloat())
-                fill(dark); c.drawOval(-8f * s, -rise * 8f * s - 2.4f * s, 8f * s, -rise * 8f * s + 2.4f * s, p)
-                fill(if (night) 0xFF3A4250.toInt() else 0xFFE8E6E0.toInt()); c.drawOval(-5f * s, -rise * 8f * s + 0.1f * s, 3f * s, -rise * 8f * s + 1.9f * s, p)
-                c.restore()
-                if (kk > 0.7f) { val sp = (kk - 0.7f) / 0.3f; puff(c, wh.x, wh.y - 4f * s * sp, 9f * s * (0.4f + sp), 0.85f * (1f - sp * 0.5f)) }
-            } else if (breach && u < 6f) {
-                val sp = (u - 3.2f) / 2.8f; puff(c, wh.x, wh.y - 3f * s * (1f - sp), 10f * s, 0.7f * (1f - sp))
-            } else if (u > 6f && u < 11f) { // the back rolling at the surface, callosities on the head, the V-shaped blow
-                val kk = (u - 6f) / 5f; val up = sin(kk * PI.toFloat())
-                c.save(); c.clipRect(wh.x - 20f * s, wh.y - 10f * s, wh.x + 20f * s, wh.y)
-                fill(dark); c.drawOval(wh.x - 7f * s, wh.y + 1.6f * s * (1f - up) - 1.8f * s, wh.x + 7f * s, wh.y + 1.6f * s * (1f - up) + 1.8f * s, p)
-                fill(0xD9EBE6D7.toInt()); for (i in 0..2) c.drawCircle(wh.x + wh.dir * (5f + i * 0.7f) * s, wh.y - up * 0.9f * s, 0.35f * s, p)
-                c.restore()
-                if (kk < 0.35f) { val bk = kk / 0.35f; for (side in intArrayOf(-1, 1)) puff(c, wh.x + wh.dir * 5f * s + side * bk * 2.2f * s, wh.y - (1f + bk * 6f) * s, (1f + bk * 2.6f) * s, 0.8f * (1f - bk * 0.6f)) }
-            } else if (u > 11f && u < 13.5f) { // flukes up as it dives
-                val kk = (u - 11f) / 2.5f; val up = sin(kk * PI.toFloat())
-                c.save(); c.translate(wh.x - wh.dir * 4f * s, wh.y); fill(dark)
-                c.drawRect(-0.5f * s, -up * 3f * s, 0.5f * s, 0f, p)
-                path.reset(); path.moveTo(0f, -up * 3f * s)
-                path.quadTo(-3f * s, -up * 4.5f * s, -4.2f * s, -up * 3.2f * s); path.quadTo(-2f * s, -up * 2.8f * s, 0f, -up * 2.4f * s)
-                path.quadTo(2f * s, -up * 2.8f * s, 4.2f * s, -up * 3.2f * s); path.quadTo(3f * s, -up * 4.5f * s, 0f, -up * 3f * s)
-                c.drawPath(path, p); c.restore()
-                wake(c, wh.x - wh.dir * 4f * s, wh.y + 0.3f * s, s * 0.5f, wh.dir, 3f, 0.5f * up)
-            }
-        }
-        if (podFor > 0f) { // a dolphin pod porpoising along, each leaping in turn
-            val s = ppm(podY, 6f)
-            for (i in 0 until 6) {
-                val ph = (podT * 0.8f + i * 0.37f) % 1.6f
-                val dx = podX - podDir * i * 3.2f * s; val dyy = podY + (i % 2) * 2f * s
-                if (ph >= 1f) continue
-                val hx = dx + podDir * (ph - 0.5f) * 5f * s; val hy = dyy - sin(PI.toFloat() * ph) * 2f * s
-                c.save(); c.translate(hx, hy); c.rotate(Math.toDegrees((podDir * (ph - 0.5f) * 1.6f).toDouble()).toFloat()); c.scale(podDir, 1f)
-                fill(0xFF3D4A58.toInt()); c.drawOval(-1.5f * s, -0.4f * s, 1.5f * s, 0.4f * s, p)
-                path.reset(); path.moveTo(-0.2f * s, -0.3f * s); path.lineTo(0.2f * s, -0.85f * s); path.lineTo(0.5f * s, -0.3f * s); path.close(); c.drawPath(path, p)
-                c.restore()
-                if (ph < 0.12f || ph > 0.88f) { fill(0xCCFFFFFF.toInt()); c.drawOval(hx - 0.9f * s, dyy - 0.3f * s, hx + 0.9f * s, dyy + 0.3f * s, p) }
-            }
-        }
-        for (b in boats) {
-            if (night && b.kind == YACHT) continue
-            drawBoat(c, b, ppm(b.y, 4.5f), b.y)
-        }
-        if (jetskiFor > 0f) {
-            val s = ppm(jetski.y, 6f); val yy = jetski.y + sin(jetski.t * 0.9f) * 12f * k; val x = jetski.x; val d = jetski.dir
-            wake(c, x, yy, s, d, 9f, 0.7f)
-            for (i in 0 until 6) puff(c, x - d * (1f + i * 0.7f) * s, yy - (1.2f + sin(i * 0.8f) * 1.2f) * s, (0.5f + i * 0.25f) * s, 0.55f - i * 0.07f) // rooster tail
-            fill(0xFFE8E8EA.toInt()); c.drawRect(x - 1.4f * s, yy - 0.7f * s, x + 1.4f * s, yy, p)
-            fill(0xFFD6322A.toInt()); c.drawRect(x - 0.2f * s, yy - 1.1f * s, x + 1f * s, yy - 0.7f * s, p)
-            fill(0xFF1B1E24.toInt()); c.drawCircle(x + d * 0.1f * s, yy - 2.3f * s, 0.35f * s, p); c.drawRect(x - 0.3f * s, yy - 2f * s, x + 0.3f * s, yy - s, p)
-        }
-        if (night) { // a chokka (squid) boat working under its bright lamps
-            val x = w * 0.58f + sin(time * 0.05f) * 20f * k; val y = hz + 80f * k; val s = ppm(y, 4.5f)
-            glow(c, x, y - 2f * s, 30f * s, 0xE6F0FF, 0.55f)
-            fill(0xFF1A2030.toInt()); c.drawRect(x - 6f * s, y - 1.5f * s, x + 6f * s, y, p)
-            fill(0xFFF4F8FF.toInt()); var kx = -5; while (kx <= 5) { c.drawRect(x + kx * s, y - 3f * s, x + kx * s + 0.6f * s, y - 2.4f * s, p); kx += 2 }
-            fill(0x59E6F0FF); for (i in 0 until 8) c.drawRect(x - 3f * s + sin(time + i) * s, y + i * 1.5f * s, x - 3f * s + sin(time + i) * s + 6f * s * (1f - i / 9f), y + i * 1.5f * s + 0.5f * s, p) // its reflection
-        }
-    }
-
-    private fun drawBoat(c: Canvas, b: Boat, s: Float, y: Float) {
-        val x = b.x; val d = b.dir
-        wake(c, x - d * (if (b.kind == CAT) 7f else 4f) * s, y, s, d, if (b.kind == YACHT) 6f else 12f, if (b.kind == YACHT) 0.35f else 0.6f)
-        c.save(); c.translate(x, y); c.scale(d, 1f)
-        when (b.kind) {
-            CAT -> { // whale-watching catamaran, passengers along the rail
-                fill(if (night) 0xFF3A4150.toInt() else 0xFFF2F2EE.toInt()); c.drawRect(-7f * s, -1.4f * s, 7f * s, 0f, p)
-                fill(if (night) 0xFF2C3240.toInt() else 0xFFDFE3E6.toInt()); c.drawRect(-4f * s, -3.2f * s, 4f * s, -1.4f * s, p)
-                fill(0xFF28323E.toInt()); c.drawRect(-3.4f * s, -2.8f * s, 3.4f * s, -2f * s, p)
-                fill(0xFF2B2F36.toInt()); var kx = -6f; while (kx < 6f) { c.drawRect(kx * s, -2.2f * s, (kx + 0.5f) * s, -1.4f * s, p); kx += 1.4f }
-            }
-            SKI -> { // fishing ski-boat with its outboard
-                fill(if (night) 0xFF3A4150.toInt() else 0xFFF4F4F0.toInt())
-                path.reset(); path.moveTo(-3.5f * s, -s); path.lineTo(3.8f * s, -1.2f * s); path.lineTo(3f * s, 0f); path.lineTo(-3.5f * s, 0f); path.close(); c.drawPath(path, p)
-                fill(0xFF2A5D9A.toInt()); c.drawRect(-3.5f * s, -0.45f * s, 3.5f * s, -0.15f * s, p)
-                fill(0xFF20242A.toInt()); c.drawRect(-4f * s, -1.4f * s, -3.4f * s, 0f, p); c.drawRect(-s, -2.4f * s, -0.5f * s, -s, p)
-            }
-            else -> { // yacht heeling under main and jib
-                c.rotate(-7f)
-                fill(0xFFFFFFFF.toInt())
-                path.reset(); path.moveTo(-4.5f * s, -s); path.lineTo(5f * s, -s); path.lineTo(3.6f * s, 0f); path.lineTo(-4f * s, 0f); path.close(); c.drawPath(path, p)
-                p.style = Paint.Style.STROKE; p.strokeWidth = max(1f, 0.25f * s); p.color = 0xFF3A3E46.toInt(); c.drawLine(0f, -s, 0f, -14f * s, p)
-                val sail = if (twilight > 0.5f) 0xFFFFE3C2.toInt() else 0xFFF8F6F0.toInt()
-                fill(sail)
-                path.reset(); path.moveTo(-0.2f * s, -13.5f * s); path.quadTo(-3f * s, -7f * s, -3.8f * s, -1.6f * s); path.lineTo(-0.2f * s, -1.6f * s); path.close(); c.drawPath(path, p)
-                fill(mix(sail, Color.rgb(120, 130, 140), 0.15f))
-                path.reset(); path.moveTo(0.3f * s, -13f * s); path.quadTo(2.6f * s, -7f * s, 4.4f * s, -1.4f * s); path.lineTo(0.3f * s, -1.4f * s); path.close(); c.drawPath(path, p)
-            }
-        }
-        c.restore()
-        if (night) { // navigation lights
-            val r = max(1.5f * k, 0.4f * s)
-            fill(if (d > 0f) 0xFF3CFF7A.toInt() else 0xFFFF3C3C.toInt()); c.drawCircle(x + d * 3f * s, y - 1.6f * s, r, p)
-            fill(0xFFFFF6E0.toInt()); c.drawCircle(x, y - 4f * s, r, p)
-        }
-    }
 
     // ---- Surf ------------------------------------------------------------------------------------
 
@@ -737,9 +583,148 @@ class GardenRouteLandscape(
 
     fun launchTrain() { if (trainX.isNaN()) { trainX = 175f; whistle = 2.6f } }
     fun launchJump() { if (jumpT < 0f) jumpT = 0f }
-    fun launchDolphins() { podFor = 70f }
-    fun launchJetski() { jetskiFor = 80f }
-    fun launchBreach() { whales[1].cycle = 2; whales[1].t = (whales[1].t / 16f).toInt() * 16f + 15.9f }
+    fun launchDolphins() = bay.launchDolphins()
+    fun launchJetski() = bay.launchJetski()
+    fun launchBreach() = bay.launchBreach()
+
+    /** A vertical side face at depth d between heights y0 (lower) and y1 (upper), lit from above. */
+    private fun sideFace(c: Canvas, xa: Float, xb: Float, y0: Float, y1: Float, d: Float, col: Int, lt: Float = 0.2f, dk: Float = 0.3f) {
+        proj(xa, y1, d); val ty = oy; proj(xa, y0, d); val by = oy
+        p.style = Paint.Style.FILL; p.color = Color.BLACK
+        p.shader = LinearGradient(0f, ty, 0f, by, intArrayOf(mix(col, Color.WHITE, lt), col, mix(col, Color.BLACK, dk)), floatArrayOf(0f, 0.3f, 1f), Shader.TileMode.CLAMP)
+        quad(c, xa, y0, d, xb, y0, d, xb, y1, d, xa, y1, d)
+        p.shader = null
+    }
+
+    /** The end of a vehicle (the plane X = x), its top arched like a coach roof when [arch] > 0. */
+    private fun endFace(c: Canvas, x: Float, y0: Float, y1: Float, half: Float, arch: Float, col: Int) {
+        fill(col)
+        path.reset()
+        proj(x, y0, -half); path.moveTo(ox, oy)
+        var d = -half
+        while (d <= half + 0.01f) { val u = d / half; proj(x, y1 - arch * (1f - u * u), d); path.lineTo(ox, oy); d += half / 4f }
+        proj(x, y0, half); path.lineTo(ox, oy)
+        path.close(); c.drawPath(path, p)
+    }
+
+    /** A round thing seen from the side (boiler, chimney): a strip across X, shaded light on top. */
+    private fun cylinderX(c: Canvas, xa: Float, xb: Float, yc: Float, r: Float, col: Int) {
+        proj(xa, yc - r, 0f); val ty = oy; proj(xa, yc + r, 0f); val by = oy
+        p.style = Paint.Style.FILL; p.color = Color.BLACK
+        p.shader = LinearGradient(0f, ty, 0f, by, intArrayOf(mix(col, Color.WHITE, 0.32f), mix(col, Color.WHITE, 0.08f), col, mix(col, Color.BLACK, 0.5f)), floatArrayOf(0f, 0.18f, 0.5f, 1f), Shader.TileMode.CLAMP)
+        quad(c, xa, yc + r, 0f, xb, yc + r, 0f, xb, yc - r, 0f, xa, yc - r, 0f)
+        p.shader = null
+    }
+
+    /** An upright round stack (chimney, dome base) between heights y0 and y1, shaded across. */
+    private fun stack(c: Canvas, x: Float, y0: Float, y1: Float, r: Float, col: Int) {
+        proj(x - r, y0, 0f); val lx = ox
+        proj(x + r, y0, 0f); val rx = ox
+        p.style = Paint.Style.FILL; p.color = Color.BLACK
+        p.shader = LinearGradient(lx, 0f, rx, 0f, intArrayOf(mix(col, Color.BLACK, 0.4f), mix(col, Color.WHITE, 0.3f), col, mix(col, Color.BLACK, 0.5f)), floatArrayOf(0f, 0.3f, 0.55f, 1f), Shader.TileMode.CLAMP)
+        quad(c, x - r, y0, 0f, x + r, y0, 0f, x + r, y1, 0f, x - r, y1, 0f)
+        p.shader = null
+    }
+
+    private fun drawVehicles(c: Canvas) {
+        val r = deckT; val d = -1.45f; val wd = 1.45f
+        val camX = -GardenDesign.DISTANCE * sth // along the span, the camera sits off the near end
+        val starts = FloatArray(consist.size)
+        var xx = trainX
+        for (i in consist.indices) { starts[i] = xx; xx += lengths[i] + 0.8f }
+        val glass = if (night) 0xF2FFD68C.toInt() else 0xFF2A323E.toInt()
+        for (i in consist.indices.reversed()) { // the far ones first
+            val xa = starts[i]; val xb = xa + lengths[i]
+            if (xb < -60f || xa > 200f) continue
+            val showEnd = xa > camX
+            when (consist[i]) {
+                COACH -> {
+                    val maroon = if (night) 0xFF2A1214.toInt() else if (twilight > 0.5f) 0xFF7A2C22.toInt() else 0xFF6E1F22.toInt()
+                    // The gangway bellows to the vehicle in front.
+                    fill(0xFF141416.toInt()); quad(c, xa - 0.8f, r - 0.9f * ts, -0.7f, xa, r - 0.9f * ts, -0.7f, xa, r - 3.6f * ts, -0.7f, xa - 0.8f, r - 3.6f * ts, -0.7f)
+                    if (showEnd) {
+                        endFace(c, xa, r - 0.6f * ts, r - 3.9f * ts, wd, 0.55f * ts, scale(maroon, 0.62f))
+                        fill(scale(glass, if (night) 1f else 0.8f)); quad(c, xa, r - 2.5f * ts, -0.4f, xa, r - 2.5f * ts, 0.4f, xa, r - 3.3f * ts, 0.4f, xa, r - 3.3f * ts, -0.4f)
+                    }
+                    // The roof, curving away above the eave.
+                    proj(xa, r - 4.45f * ts, -0.9f); val rt = oy; proj(xa, r - 3.9f * ts, d); val rb = oy
+                    p.style = Paint.Style.FILL; p.color = Color.BLACK
+                    p.shader = LinearGradient(0f, rt, 0f, rb, if (night) 0xFF1A1A1E.toInt() else 0xFF5E5A56.toInt(), if (night) 0xFF0E0E10.toInt() else 0xFF2E2A28.toInt(), Shader.TileMode.CLAMP)
+                    quad(c, xa, r - 3.9f * ts, d, xb, r - 3.9f * ts, d, xb, r - 4.45f * ts, -0.9f, xa, r - 4.45f * ts, -0.9f); p.shader = null
+                    sideFace(c, xa, xb, r - 0.6f * ts, r - 3.9f * ts, d, maroon)
+                    sideFace(c, xa + 0.5f, xb - 0.5f, r - 2.35f * ts, r - 3.35f * ts, d - 0.01f, if (night) 0xFF3A2A1C.toInt() else 0xFFE8DCC0.toInt(), 0.1f, 0.15f)
+                    var wx = xa + 1.7f
+                    while (wx < xb - 1.9f) {
+                        fill(glass); quad(c, wx, r - 2.45f * ts, d - 0.02f, wx + 1.4f, r - 2.45f * ts, d - 0.02f, wx + 1.4f, r - 3.25f * ts, d - 0.02f, wx, r - 3.25f * ts, d - 0.02f)
+                        if (!night) { fill(0x40FFFFFF); quad(c, wx + 0.2f, r - 3.25f * ts, d - 0.03f, wx + 0.55f, r - 3.25f * ts, d - 0.03f, wx + 0.25f, r - 2.45f * ts, d - 0.03f, wx - 0.1f, r - 2.45f * ts, d - 0.03f) } // a glint
+                        wx += 2.2f
+                    }
+                    for (dx in floatArrayOf(1.1f, lengths[i] - 1.1f)) { fill(withAlpha(Color.BLACK, 90)); quad(c, xa + dx, r - 0.7f * ts, d - 0.02f, xa + dx + 0.08f, r - 0.7f * ts, d - 0.02f, xa + dx + 0.08f, r - 3.8f * ts, d - 0.02f, xa + dx, r - 3.8f * ts, d - 0.02f) } // doors
+                    fill(withAlpha(if (night) 0xFF5A4A30.toInt() else 0xFFE0C070.toInt(), 200)); quad(c, xa + 0.4f, r - 1.55f * ts, d - 0.02f, xb - 0.4f, r - 1.55f * ts, d - 0.02f, xb - 0.4f, r - 1.65f * ts, d - 0.02f, xa + 0.4f, r - 1.65f * ts, d - 0.02f) // gold lining
+                }
+                TENDER -> {
+                    val blk = if (night) 0xFF0C0D10.toInt() else 0xFF1C1D20.toInt()
+                    if (showEnd) endFace(c, xa, r - 0.6f * ts, r - 3.4f * ts, wd, 0f, scale(blk, 0.7f))
+                    sideFace(c, xa, xb, r - 0.6f * ts, r - 3.4f * ts, d, blk, 0.25f, 0.4f)
+                    fill(if (night) 0xFF3A1210.toInt() else 0xFF8A2A22.toInt()); quad(c, xa + 0.8f, r - 1.6f * ts, d - 0.02f, xb - 0.8f, r - 1.6f * ts, d - 0.02f, xb - 0.8f, r - 2.9f * ts, d - 0.02f, xa + 0.8f, r - 2.9f * ts, d - 0.02f)
+                    fill(blk); quad(c, xa + 1f, r - 1.75f * ts, d - 0.03f, xb - 1f, r - 1.75f * ts, d - 0.03f, xb - 1f, r - 2.75f * ts, d - 0.03f, xa + 1f, r - 2.75f * ts, d - 0.03f) // lined panel
+                    fill(if (night) 0xFF050506.toInt() else 0xFF2A2624.toInt()); quad(c, xa + 0.3f, r - 3.4f * ts, -0.9f, xb - 0.3f, r - 3.4f * ts, -0.9f, xb - 0.5f, r - 3.9f * ts, 0f, xa + 0.5f, r - 3.9f * ts, 0f) // coal heaped above
+                }
+                else -> { // the locomotive
+                    val blk = if (night) 0xFF0B0C0F.toInt() else 0xFF17181B.toInt()
+                    val xc = xb - 5.5f
+                    val yc = r - 2.55f * ts; val rad = 1.05f * ts
+                    // Cab: its front plate above the boiler, roof overhang, side with window.
+                    endFace(c, xc, yc, r - 4.2f * ts, wd, 0.25f * ts, scale(blk, 0.8f))
+                    if (night) { proj(xc, r - 3.6f * ts, -0.75f); val fx0 = ox; val fy0 = oy; fill(0xFFFFA050.toInt()); c.drawCircle(fx0, fy0, 0.3f * ts * foc / oz, p) }
+                    else { proj(xc, r - 3.6f * ts, -0.75f); fill(0xFF3A4452.toInt()); c.drawCircle(ox, oy, 0.3f * ts * foc / oz, p) }
+                    sideFace(c, xc, xb, r - 1.0f * ts, r - 4.2f * ts, d, blk, 0.22f, 0.4f)
+                    fill(if (night) 0xF2FF963C.toInt() else 0xFF323A46.toInt()); quad(c, xc + 1.2f, r - 2.7f * ts, d - 0.02f, xb - 1.4f, r - 2.7f * ts, d - 0.02f, xb - 1.4f, r - 3.7f * ts, d - 0.02f, xc + 1.2f, r - 3.7f * ts, d - 0.02f)
+                    fill(if (night) 0xFF050506.toInt() else 0xFF0E0F11.toInt()); quad(c, xc - 0.5f, r - 4.2f * ts, d - 0.3f, xb + 0.4f, r - 4.2f * ts, d - 0.3f, xb + 0.4f, r - 4.5f * ts, -0.6f, xc - 0.5f, r - 4.5f * ts, -0.6f)
+                    // Boiler: a black cylinder lit along its top, with bright boiler bands.
+                    cylinderX(c, xa + 0.4f, xc, yc, rad, blk)
+                    for (bx in floatArrayOf(xa + 1.9f, xa + 5.2f, xa + 9.0f, xa + 12.4f)) {
+                        p.style = Paint.Style.STROKE; p.strokeWidth = max(1f, 0.08f * ts * foc / oz); p.color = if (night) 0xFF30343C.toInt() else 0xFF7A808A.toInt()
+                        proj(bx, yc - rad, 0f); val x0 = ox; val y0 = oy; proj(bx, yc + rad * 0.7f, d); c.drawLine(x0, y0, ox, oy, p)
+                        p.style = Paint.Style.FILL
+                    }
+                    p.style = Paint.Style.STROKE; p.strokeWidth = max(1f, 0.06f * ts * foc / oz); p.color = if (night) 0xFF40444C.toInt() else 0xFFB8BCC4.toInt()
+                    proj(xa + 1.2f, yc - rad * 0.3f, d); val hx0 = ox; val hy0 = oy; proj(xc, yc - rad * 0.3f, d); c.drawLine(hx0, hy0, ox, oy, p) // handrail
+                    p.style = Paint.Style.FILL
+                    // Dome, safety valves and the chimney.
+                    stack(c, xa + 9.5f, yc - rad * 0.8f, yc - rad - 0.35f * ts, 0.9f, blk)
+                    proj(xa + 9.5f, yc - rad - 0.35f * ts, 0f); val dmx = ox; val dmy = oy
+                    proj(xa + 8.6f, yc - rad - 0.35f * ts, 0f); val dmr = abs(dmx - ox)
+                    p.color = Color.BLACK; p.shader = LinearGradient(dmx - dmr, 0f, dmx + dmr, 0f, intArrayOf(mix(blk, Color.BLACK, 0.4f), mix(blk, Color.WHITE, 0.35f), mix(blk, Color.BLACK, 0.5f)), floatArrayOf(0f, 0.35f, 1f), Shader.TileMode.CLAMP)
+                    c.drawOval(dmx - dmr, dmy - dmr * 0.6f, dmx + dmr, dmy + dmr * 0.6f, p); p.shader = null
+                    stack(c, xa + 12.6f, yc - rad * 0.9f, yc - rad - 0.45f * ts, 0.18f, if (night) 0xFF3A3020.toInt() else 0xFFB89848.toInt()) // brass safety valve
+                    stack(c, xa + 2.7f, yc - rad * 0.8f, yc - rad - 1.15f * ts, 0.5f, blk)
+                    stack(c, xa + 2.7f, yc - rad - 1.0f * ts, yc - rad - 1.2f * ts, 0.62f, blk) // the chimney's lip
+                    // Running board with its red valance.
+                    sideFace(c, xa, xc, r - 1.2f * ts, r - 1.45f * ts, d - 0.05f, if (night) 0xFF140808.toInt() else 0xFF9E2620.toInt(), 0.15f, 0.3f)
+                    // Smokebox front: a dark disc with its rim, door and dart handle.
+                    val fxp = xa + 0.4f
+                    proj(fxp, yc, 0f); val fx = ox; val fy = oy
+                    proj(fxp, yc, -rad); val l = ox; proj(fxp, yc, rad); val rx = max(abs(ox - l) / 2f, 1f)
+                    proj(fxp, yc - rad, 0f); val ty = oy; proj(fxp, yc + rad, 0f); val ry = abs(oy - ty) / 2f
+                    if (showEnd) {
+                        fill(if (night) 0xFF0E0F12.toInt() else 0xFF26282D.toInt()); c.drawOval(fx - rx, fy - ry, fx + rx, fy + ry, p)
+                        fill(if (night) 0xFF07080A.toInt() else 0xFF101114.toInt()); c.drawOval(fx - rx * 0.78f, fy - ry * 0.78f, fx + rx * 0.78f, fy + ry * 0.78f, p)
+                        p.style = Paint.Style.STROKE; p.strokeWidth = max(1f, ry * 0.06f); p.color = if (night) 0xFF30343A.toInt() else 0xFF8A9098.toInt()
+                        c.drawOval(fx - rx * 0.78f, fy - ry * 0.78f, fx + rx * 0.78f, fy + ry * 0.78f, p)
+                        c.drawLine(fx - rx * 0.25f, fy, fx + rx * 0.25f, fy, p); c.drawLine(fx, fy - ry * 0.25f, fx, fy + ry * 0.25f, p)
+                        p.style = Paint.Style.FILL
+                        fill(0xFFB02A22.toInt()); c.drawRect(fx - rx * 0.3f, fy + ry * 0.4f, fx + rx * 0.3f, fy + ry * 0.58f, p) // number plate
+                        endFace(c, xa, r - 0.6f * ts, r - 1.4f * ts, wd, 0f, if (night) 0xFF2A0A08.toInt() else 0xFFB4281E.toInt()) // buffer beam
+                    }
+                    // Headlamp on top of the smokebox.
+                    proj(fxp, yc - rad - 0.25f * ts, -0.2f)
+                    if (night || twilight > 0.5f) glow(c, ox, oy, rad * foc / oz * 2.6f, 0xFFF0C8, 0.9f)
+                    fill(0xFFFFF4D8.toInt()); c.drawCircle(ox, oy, max(1.5f * k, 0.22f * ts * foc / oz), p)
+                }
+            }
+        }
+    }
 
     private fun drawTrain(c: Canvas) {
         c.save()
@@ -747,50 +732,7 @@ class GardenRouteLandscape(
         proj(-120f, deckT - 1.1f, -6f); val ax = ox; val ay = oy; proj(250f, deckT - 1.1f, -6f); val m = (oy - ay) / (ox - ax)
         parapet.reset(); parapet.moveTo(-50f, ay + m * (-50f - ax)); parapet.lineTo(w + 50f, ay + m * (w + 50f - ax)); parapet.lineTo(w + 50f, -h); parapet.lineTo(-50f, -h); parapet.close()
         c.clipPath(parapet)
-        if (!trainX.isNaN()) {
-            val r = deckT; val d = -1.6f
-            val starts = FloatArray(consist.size)
-            var xx = trainX
-            for (i in consist.indices) { starts[i] = xx; xx += lengths[i] + 0.8f }
-            for (i in consist.indices.reversed()) { // the far ones first
-                val xa = starts[i]; val xb = xa + lengths[i]
-                if (xb < -60f || xa > 200f) continue
-                when (consist[i]) {
-                    COACH -> {
-                        face(c, xa, xb, r - 0.6f * ts, r - 3.9f * ts, d, if (night) 0xFF2A1214.toInt() else if (twilight > 0.5f) 0xFF7A2C22.toInt() else 0xFF6E1F22.toInt())
-                        face(c, xa + 0.6f, xb - 0.6f, r - 2.4f * ts, r - 3.3f * ts, d, if (night) 0xFF3A2A1C.toInt() else 0xFFE8DCC0.toInt())
-                        var wx = xa + 1.6f
-                        while (wx < xb - 1.6f) { face(c, wx, wx + 1.3f, r - 2.5f * ts, r - 3.2f * ts, d, if (night) 0xF2FFD68C.toInt() else 0xD928303A.toInt()); wx += 2.2f }
-                        face(c, xa, xb, r - 3.9f * ts, r - 4.4f * ts, d, if (night) 0xFF121214.toInt() else 0xFF3A3634.toInt())
-                    }
-                    TENDER -> {
-                        face(c, xa, xb, r - 0.6f * ts, r - 3.4f * ts, d, if (night) 0xFF0C0D10.toInt() else 0xFF1C1D20.toInt())
-                        face(c, xa, xb, r - 3.0f * ts, r - 3.4f * ts, d, if (night) 0xFF1A1A1E.toInt() else 0xFF3A3C40.toInt())
-                        face(c, xa + 1f, xb - 1f, r - 1.6f * ts, r - 2.1f * ts, d, if (night) 0xFF3A1210.toInt() else 0xFF8A2A22.toInt())
-                    }
-                    else -> { // the locomotive: smokebox and boiler, dome, chimney, cab at the back
-                        val xc = xb - 5.5f
-                        val blk = if (night) 0xFF0B0C0F.toInt() else 0xFF16171A.toInt()
-                        face(c, xa, xb, r - 0.6f * ts, r - 1.4f * ts, d, if (night) 0xFF140808.toInt() else 0xFF8E1F1A.toInt())
-                        face(c, xa + 0.4f, xc, r - 1.4f * ts, r - 3.6f * ts, d - 0.2f, blk)
-                        face(c, xa + 0.4f, xc, r - 3.0f * ts, r - 3.3f * ts, d - 0.2f, if (night) 0xFF1D1F24.toInt() else 0xFF4A4E56.toInt())
-                        face(c, xa + 2.2f, xa + 3.4f, r - 3.6f * ts, r - 5.0f * ts, d + 0.9f, blk)
-                        face(c, xa + 8.5f, xa + 10.2f, r - 3.6f * ts, r - 4.4f * ts, d + 0.9f, blk)
-                        face(c, xc, xb, r - 1.0f * ts, r - 4.3f * ts, d, blk)
-                        face(c, xc + 1.2f, xb - 1.2f, r - 2.6f * ts, r - 3.6f * ts, d, if (night) 0xF2FF963C.toInt() else 0xE632363E.toInt())
-                        // The smokebox front, facing us as it approaches.
-                        proj(xa, r - 2.5f * ts, 0f); val fx = ox; val fy = oy; val rr = 1.25f * ts * foc / oz
-                        proj(xa, r - 2.5f * ts, -1.2f); val lx = ox; proj(xa, r - 2.5f * ts, 1.2f); val rx = max(abs(ox - lx) / 2f, rr * 0.2f)
-                        fill(if (night) 0xFF0A0B0D.toInt() else 0xFF111214.toInt()); c.drawOval(fx - rx, fy - rr, fx + rx, fy + rr, p)
-                        p.style = Paint.Style.STROKE; p.strokeWidth = max(1f, rr * 0.12f); p.color = if (night) 0xFF2A2C30.toInt() else 0xFF5A5E66.toInt()
-                        c.drawOval(fx - rx * 0.7f, fy - rr * 0.7f, fx + rx * 0.7f, fy + rr * 0.7f, p)
-                        proj(xa, r - 4.0f * ts, 0f)
-                        if (night || twilight > 0.5f) glow(c, ox, oy, rr * 3f, 0xFFF0C8, 0.9f)
-                        fill(0xFFFFF4D8.toInt()); c.drawCircle(ox, oy, max(1.5f * k, rr * 0.22f), p)
-                    }
-                }
-            }
-        }
+        if (!trainX.isNaN()) drawVehicles(c)
         drawPuffs(c)
         c.restore()
     }
@@ -799,7 +741,8 @@ class GardenRouteLandscape(
 
     override fun update(dt: Float) {
         time += dt
-        updateBay(dt)
+        bay.night = night; bay.twilight = twilight; bay.daylightVisitors = daytime
+        bay.update(dt)
         updateTrain(dt)
         updatePuffs(dt)
         for (wk in walkers) { wk.X += wk.v * dt; if (wk.X < -125f || wk.X > -6f) wk.v = -wk.v }
@@ -809,8 +752,7 @@ class GardenRouteLandscape(
 
     /** 2 = something moves quickly (train, jump, jetski, dolphins, a breach); 0 = only the bay drifting (the calm rate). */
     val motion: Int get() {
-        val breach = whales.any { it.cycle % 3 == 2 && it.t % 16f < 6f }
-        return if (!trainX.isNaN() || jumpT >= 0f || jetskiFor > 0f || podFor > 0f || breach || puffs.isNotEmpty()) 2 else 0
+        return if (!trainX.isNaN() || jumpT >= 0f || bay.busy || puffs.isNotEmpty()) 2 else 0
     }
 
     override fun draw(canvas: Canvas, onWater: ((Canvas) -> Unit)?) {
@@ -818,7 +760,8 @@ class GardenRouteLandscape(
         canvas.drawBitmap(sea!!, 0f, seaTop, null)
         canvas.save(); canvas.translate(0f, dy)
         drawSurf(canvas)
-        drawBay(canvas)
+        bay.seaColour = pal.seaMid; bay.hazeColour = pal.haze
+        bay.draw(canvas, ::glow)
         canvas.restore()
         canvas.drawBitmap(landBmp!!, 0f, landTop, null)
         canvas.save(); canvas.translate(0f, dy)
