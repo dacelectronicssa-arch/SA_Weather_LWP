@@ -42,6 +42,14 @@ class SavannaWildlife(private val dp: Float) {
         var headTimer = 0f
         var pronk = 0f
         var mother: Animal? = null
+        // Idle life: flies come in bursts, ears flick, grazers shift their weight.
+        var flyTimer = 0f
+        var earTimer = 0f
+        var earT = 1f
+        var shiftTimer = 0f
+        /** Seconds spent waiting behind a neighbour on the way back in. */
+        var wait = 0f
+        var detours = 0
         val isLion get() = sp == Species.LION || sp == Species.LIONESS
     }
 
@@ -112,11 +120,20 @@ class SavannaWildlife(private val dp: Float) {
             a.pose.head = if (rnd.nextBoolean()) 0f else 1f
             a.pose.t = r() * 100f
         }
+        spreadOut()
         val nLions = max(2, SavannaDesign.LIONS + 1)
         for (i in 0 until nLions) {
             val lion = Animal(if (i == 0) Species.LION else Species.LIONESS, 0.14f, 0.04f, 0.4f, -0.3f, 0.12f + r() * 0.28f)
             lion.state = State.GONE
             lions += lion
+        }
+        for (a in animals + lions) {
+            a.pose.coat = r() * 2f - 1f
+            a.pose.seed = rnd.nextInt(1 shl 20)
+            a.pose.tail = r() * 10f
+            a.flyTimer = r() * 15f
+            a.earTimer = r() * 6f
+            a.shiftTimer = r() * 6f
         }
         phase = Phase.CALM
         phaseTimer = 90f + r() * 60f
@@ -189,6 +206,20 @@ class SavannaWildlife(private val dp: Float) {
                     a.x = if (fromLeft) -0.2f else 1.2f
                     a.dir = if (fromLeft) 1f else -1f
                     a.tx = 0.05f + r() * 0.9f
+                    a.wait = 0f; a.detours = 0
+                }
+                // Each comes back to a spot of its own, clear of its neighbours' spots.
+                for ((i, a) in animals.withIndex()) {
+                    if (a.mother != null) continue
+                    for (k in 0 until 8) {
+                        var free = true
+                        for (j in 0 until i) {
+                            val b = animals[j]
+                            if (b.mother == null && sameLane(a, b) && abs(b.tx - a.tx) < clearance(a, b)) { free = false; break }
+                        }
+                        if (free) break
+                        a.tx = 0.05f + r() * 0.9f
+                    }
                 }
                 // Mother and calf come back together.
                 for (a in animals) a.mother?.let { m -> a.timer = m.timer + 0.5f; a.x = m.x - m.dir * 0.05f; a.dir = m.dir; a.tx = m.tx - m.dir * 0.05f }
@@ -257,10 +288,135 @@ class SavannaWildlife(private val dp: Float) {
         return false
     }
 
+    // ---- Herd spacing ----
+    // Animals at about the same depth stand on the same strip of ground on screen, so one
+    // walking through another looks wrong. They keep a body's length apart, stop short of a
+    // neighbour in their way and pick grazing spots that aren't taken. (A stampede ignores this.)
+
+    /** Same strip of ground: their feet are closer on screen than a sliver of body height. */
+    private fun sameLane(a: Animal, b: Animal): Boolean {
+        val lay = L ?: return false
+        return abs(a.d - b.d) * lay.gH < 0.16f * max(pxSize(a), pxSize(b))
+    }
+
+    /** Centre-to-centre gap two neighbours keep, as a fraction of the width. */
+    private fun clearance(a: Animal, b: Animal) = 0.5f * (pxSize(a) + pxSize(b)) / w
+
+    /** The calf mingles with its family; spacing is for strangers. */
+    private fun family(a: Animal, b: Animal) =
+        a.mother === b || b.mother === a || (a.sp == Species.CALF && b.sp == Species.ELEPHANT) || (b.sp == Species.CALF && a.sp == Species.ELEPHANT)
+
+    private fun ignores(a: Animal, b: Animal) =
+        b === a || family(a, b) || b.state == State.AWAY || b.state == State.FLEE || !sameLane(a, b)
+
+    /** How far towards [tx] a can walk before bumping into a neighbour ([tx] if the way is clear). */
+    private fun reach(a: Animal, tx: Float): Float {
+        val dir = sign(tx - a.x)
+        if (dir == 0f) return tx
+        var go = abs(tx - a.x)
+        for (b in animals) {
+            if (ignores(a, b)) continue
+            val ahead = (b.x - a.x) * dir
+            if (ahead <= 0f) continue
+            go = min(go, max(0f, ahead - clearance(a, b)))
+        }
+        return a.x + dir * go
+    }
+
+    /** Whether standing at x would crowd a neighbour (where it stands, or is walking to). */
+    private fun crowded(a: Animal, x: Float): Boolean {
+        for (b in animals) {
+            if (ignores(a, b)) continue
+            val gap = clearance(a, b)
+            if (abs(b.x - x) < gap) return true
+            if (b.state == State.WALK && abs(b.tx - x) < gap) return true
+        }
+        return false
+    }
+
+    /** Nudges the starting herd apart so nobody begins inside a neighbour. */
+    private fun spreadOut() {
+        repeat(40) {
+            for (a in animals) for (b in animals) {
+                if (a === b || family(a, b) || !sameLane(a, b)) continue
+                val dx = b.x - a.x
+                val need = clearance(a, b) - abs(dx)
+                if (need <= 0f) continue
+                val push = need * 0.5f * (if (dx >= 0f) 1f else -1f)
+                a.x = (a.x - push).coerceIn(0.03f, 0.97f)
+                b.x = (b.x + push).coerceIn(0.03f, 0.97f)
+            }
+        }
+    }
+
+    /** A new grazing spot near by that isn't taken and can be reached, or null. */
+    private fun grazingSpot(a: Animal): Float? {
+        repeat(6) {
+            val want = (a.x + (r() - 0.5f) * 0.18f).coerceIn(0.03f, 0.97f)
+            val go = reach(a, want)
+            if (abs(go - a.x) > 0.02f && !crowded(a, go)) return go
+        }
+        return null
+    }
+
+    // ---- Idle life ----
+
+    /**
+     * Ear flicks, tail swishes and weight shifts. Flies arrive every 6-20 s and bother it for a
+     * few seconds: the tail swats harder and faster and the ears flick often. Grazers lift and
+     * set down one foot every few seconds, leaning with it.
+     */
+    private fun idle(a: Animal, dt: Float) {
+        val p = a.pose
+        val calm = a.state == State.GRAZE || a.state == State.WALK || a.state == State.REST || a.state == State.RETURN
+        a.flyTimer -= dt
+        if (a.flyTimer <= 0f) {
+            p.fly = 1f
+            a.flyTimer = 6f + r() * 14f
+            a.earTimer = min(a.earTimer, r() * 0.5f)
+        }
+        p.fly = if (calm) max(0f, p.fly - dt / 4f) else max(0f, p.fly - dt * 2f)
+        p.swish += ((if (calm) min(1f, p.fly * 1.6f) else 0f) - p.swish) * min(1f, dt * 4f)
+        p.tail += dt * (1f + 3.2f * p.swish)
+        // Ear flicks: a quick twitch back and forth, now and then, often while flies are about.
+        a.earTimer -= dt
+        if (a.earTimer <= 0f) {
+            a.earT = 0f
+            a.earTimer = if (p.fly > 0.25f) 0.4f + r() * 1.1f else 3f + r() * 8f
+        }
+        a.earT += dt / 0.3f
+        p.ear = if (a.earT < 1f) sin(PI.toFloat() * a.earT) else 0f
+        if (a.isLion) return
+        // Weight shifts while grazing.
+        if (a.state == State.GRAZE && p.act == Act.GRAZE) {
+            a.shiftTimer -= dt
+            if (p.stepLeg < 0 && a.shiftTimer <= 0f) {
+                val leg = rnd.nextInt(4)
+                p.stepLeg = leg; p.step = 0f
+                p.stepFrom = p.plant[leg]
+                p.stepTo = ((r() - 0.4f) * 0.1f).coerceIn(-0.04f, 0.06f)
+                a.shiftTimer = 2.5f + r() * 6f
+            }
+        }
+        if (p.stepLeg >= 0) {
+            p.step += dt / 0.65f
+            if (p.step >= 1f) { p.plant[p.stepLeg] = p.stepTo; p.stepLeg = -1; p.step = 0f }
+        }
+        // Lean over the feet: with the stance, and off a leg as it lifts.
+        val moving = p.act == Act.WALK || p.act == Act.RUN || p.act == Act.PRONK
+        var lean = 0f
+        if (!moving) {
+            lean = (p.plant[0] + p.plant[1] + p.plant[2] + p.plant[3]) * 0.12f
+            if (p.stepLeg >= 0) lean += (if (p.stepLeg >= 2) -0.012f else 0.012f) * sin(PI.toFloat() * p.step)
+        }
+        p.sway += (lean - p.sway) * min(1f, dt * 3f)
+    }
+
     private fun updateAnimal(a: Animal, dt: Float, lay: SavannaLayout) {
         val p = a.pose
         p.t += dt
         a.timer -= dt
+        idle(a, dt)
         when (a.state) {
             State.GRAZE -> {
                 p.act = Act.GRAZE
@@ -272,17 +428,20 @@ class SavannaWildlife(private val dp: Float) {
                 }
                 val m = a.mother
                 if (m != null) {
-                    a.tx = m.x - m.dir * 0.05f
+                    a.tx = reach(a, m.x - m.dir * 0.05f) // at mum's side, unless someone's in between
                     if (abs(a.tx - a.x) > 0.03f) a.state = State.WALK
                 } else if (a.timer <= 0f) {
-                    a.tx = (a.x + (r() - 0.5f) * 0.18f).coerceIn(0.03f, 0.97f)
-                    a.state = State.WALK
+                    val spot = grazingSpot(a)
+                    if (spot != null) { a.tx = spot; a.state = State.WALK }
+                    else a.timer = (3f + r() * 5f) / SavannaDesign.ACTIVITY
+                } else if (a.timer > 2f && crowded(a, a.x)) {
+                    a.timer = 1f + r() // someone's too close: move off soon
                 }
             }
             State.WALK -> {
                 a.headTarget = 0.85f
                 val m = a.mother
-                if (m != null) a.tx = m.x - m.dir * 0.05f
+                a.tx = reach(a, if (m != null) m.x - m.dir * 0.05f else a.tx) // stop short of anyone in the way (or graze here if they're right there)
                 if (move(a, a.walk, dt, Act.WALK)) {
                     a.state = State.GRAZE
                     a.timer = (10f + 20f * r()) / SavannaDesign.ACTIVITY
@@ -329,9 +488,41 @@ class SavannaWildlife(private val dp: Float) {
             State.RETURN -> {
                 if (a.timer <= 0f) {
                     a.headTarget = 0.85f
-                    if (move(a, a.walk * 1.4f, dt, Act.WALK)) {
-                        a.state = State.GRAZE
-                        a.timer = (10f + 20f * r()) / SavannaDesign.ACTIVITY
+                    val goal = a.tx
+                    val go = if (a.mother == null) reach(a, goal) else goal
+                    if (abs(go - goal) < 0.004f) {
+                        a.wait = 0f
+                        if (move(a, a.walk * 1.4f, dt, Act.WALK)) {
+                            a.state = State.GRAZE
+                            a.timer = (10f + 20f * r()) / SavannaDesign.ACTIVITY
+                        }
+                    } else {
+                        // Someone's in the way: walk up behind them and wait for the gap to open.
+                        a.tx = go
+                        val stopped = move(a, a.walk * 1.4f, dt, Act.WALK)
+                        a.tx = goal
+                        if (!stopped) a.wait = 0f
+                        else {
+                            p.act = Act.STAND
+                            a.wait += dt
+                            if (a.wait > 3f) {
+                                a.wait = 0f
+                                if (a.x < 0f || a.x > 1f) {
+                                    // Still out of sight: head for another free spot, or come in from
+                                    // the other side; if the plain is that full, graze out of view.
+                                    var spot = -1f
+                                    for (k in 0 until 8) {
+                                        val c = 0.05f + r() * 0.9f
+                                        if (abs(reach(a, c) - c) < 0.004f && !crowded(a, c)) { spot = c; break }
+                                    }
+                                    when {
+                                        spot >= 0f -> a.tx = spot
+                                        ++a.detours < 3 -> { a.x = if (a.x < 0f) 1.2f else -0.2f; a.dir = -a.dir; a.facing = a.dir }
+                                        else -> { a.state = State.GRAZE; a.timer = 5f }
+                                    }
+                                } else a.tx = a.x // in view: graze here
+                            }
+                        }
                     }
                 }
             }
@@ -350,6 +541,7 @@ class SavannaWildlife(private val dp: Float) {
         val p = l.pose
         p.t += dt
         l.timer -= dt
+        idle(l, dt)
         when (l.state) {
             State.ENTER -> {
                 l.headTarget = 0.6f

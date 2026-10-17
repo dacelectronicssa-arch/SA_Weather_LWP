@@ -32,6 +32,21 @@ class Pose {
     /** Per leg: 0 planted, up to 1 mid-swing (paws curl), negative while pushing off. */
     val flex = FloatArray(4)
     var pitch = 0f      // body tilt in radians (the gallop)
+
+    // Idle life, set by the herd's behaviour.
+    var ear = 0f        // 0..1, an ear flicking back
+    var swish = 0f      // 0..1, how hard the tail swats at flies
+    var fly = 0f        // 0..1, how many flies are buzzing round it
+    var tail = 0f       // the tail's own swing clock (runs faster while it swats)
+    var sway = 0f       // body lean forwards or back as it shifts its weight
+    /** Standing feet's offsets from their rest spot, changed one step at a time while grazing. */
+    val plant = FloatArray(4)
+    var stepLeg = -1    // the leg being lifted and set down again, or -1
+    var step = 0f       // 0..1 through that step
+    var stepFrom = 0f
+    var stepTo = 0f
+    var coat = 0f       // -1..1, this animal's own shade of its species' coat
+    var seed = 0        // lays out its brush strokes
 }
 
 /**
@@ -151,9 +166,25 @@ class AnimalArt {
             val moving = pose.act == Act.WALK || pose.act == Act.RUN || pose.act == Act.STALK
             val g = if (pose.act == Act.RUN) sk.run else sk.gait
             val stride = strideOf(sp, pose.act)
+            if (!moving) {
+                // Planted, each foot where its last weight-shifting step put it.
+                for (i in 0 until 4) {
+                    var off = pose.plant[i]
+                    var lift = 0f
+                    if (i == pose.stepLeg) {
+                        val s = pose.step.coerceIn(0f, 1f)
+                        off = pose.stepFrom + (pose.stepTo - pose.stepFrom) * s * s * (3f - 2f * s)
+                        lift = (if (legs[i].front) 0.05f else 0.035f) * sin(PI.toFloat() * s)
+                    }
+                    pose.feet[i * 2] = legs[i].home + off
+                    pose.feet[i * 2 + 1] = -lift
+                }
+                return
+            }
+            // Walking off forgets the standing stance.
+            pose.plant.fill(0f); pose.stepLeg = -1
             for (i in 0 until 4) {
                 val l = legs[i]
-                if (!moving) { pose.feet[i * 2] = l.home; pose.feet[i * 2 + 1] = 0f; continue }
                 val u = frac(pose.phase + g.off[i])
                 if (u < g.beta) {
                     pose.feet[i * 2] = l.home + stride * (0.5f - u / g.beta)
@@ -225,6 +256,80 @@ class AnimalArt {
         cv.restore()
     }
 
+    /** The current animal's coat variation (see [Pose.coat]). */
+    private var coatVar = 0f
+
+    /** A coat colour, nudged warmer or greyer and lighter or darker for this one animal. */
+    private fun coat(rgb: Long): Int {
+        val base = rgb.toInt()
+        val v = coatVar
+        val toned = if (v > 0f) mix(base, 0xFFB4783C.toInt(), v * 0.12f) else mix(base, 0xFF5C5C62.toInt(), -v * 0.12f)
+        return tint(scale(toned, 1f + 0.05f * v))
+    }
+
+    private var dabSeed = 1
+    private fun rand(): Float {
+        dabSeed = (dabSeed * 1103515245 + 12345) and 0x7FFFFFFF
+        return (dabSeed ushr 8) / 8388608f
+    }
+
+    /**
+     * The painterly pass over the body in [clip]: soft brush strokes of lighter and darker coat
+     * laid along the hair (angle [flow], radians), warm light caught along the back and a
+     * darker edge underneath. [dabs] strokes; none for distant animals.
+     */
+    private fun paint(cv: Canvas, base: Int, pose: Pose, dabs: Int, flow: Float = 1.75f, strength: Float = 1f, rims: Boolean = true, jitter: Float = 0.7f) {
+        if (shading <= 0.02f) return
+        @Suppress("DEPRECATION") clip.computeBounds(shadeBounds, true)
+        val b = shadeBounds
+        val bw = b.right - b.left
+        val bh = b.bottom - b.top
+        val a = shading * strength
+        cv.save(); cv.clipPath(clip)
+        if (dabs > 0) {
+            val light = mix(base, c(0xFFFFF2D8), 0.32f)
+            val dark = scale(base, 0.74f)
+            dabSeed = pose.seed * 31 + 7
+            p.style = Paint.Style.STROKE; p.shader = null; p.strokeCap = Paint.Cap.ROUND
+            for (i in 0 until dabs) {
+                val x = b.left + rand() * bw
+                val v = rand()
+                val y = b.top + v * bh
+                // Lighter strokes up on the back, darker ones towards the belly.
+                val isDark = rand() < 0.25f + v * 0.5f
+                p.color = withAlpha(if (isDark) dark else light, ((if (isDark) 58 else 40) * a).toInt())
+                p.strokeWidth = 0.012f + 0.01f * rand()
+                val len = 0.012f + 0.022f * rand()
+                val ang = flow + (rand() - 0.5f) * jitter
+                cv.drawLine(x, y, x + cos(ang) * len, y + sin(ang) * len, p)
+            }
+        }
+        if (!rims) { cv.restore(); return }
+        p.style = Paint.Style.STROKE
+        p.color = 0xFF000000.toInt() // opaque, so the gradients keep their own alpha
+        p.strokeWidth = 0.05f
+        p.shader = LinearGradient(0f, b.top, 0f, b.top + bh * 0.5f, withAlpha(c(0xFFFFF0D0), (90 * a).toInt()), 0x00FFFFFF, Shader.TileMode.CLAMP)
+        cv.drawPath(clip, p)
+        p.strokeWidth = 0.035f
+        p.shader = LinearGradient(0f, b.bottom - bh * 0.45f, 0f, b.bottom, 0x00000000, withAlpha(scale(base, 0.4f), (120 * a).toInt()), Shader.TileMode.CLAMP)
+        cv.drawPath(clip, p)
+        p.shader = null
+        cv.restore()
+    }
+
+    /** A few flies buzzing round (cx, cy) while [Pose.fly] is up. */
+    private fun flies(cv: Canvas, pose: Pose, cx: Float, cy: Float) {
+        if (pose.fly < 0.08f) return
+        fill(withAlpha(c(0xFF141210), (230 * min(1f, pose.fly * 2f)).toInt()))
+        val t = pose.t
+        for (i in 0 until 3) {
+            if (pose.fly < 0.2f + i * 0.25f) break
+            val x = cx + 0.09f * sin(t * (5.3f + i) + i * 2.1f) + 0.03f * sin(t * 17f + i)
+            val y = cy + 0.06f * cos(t * (6.7f - i) + i * 1.3f) + 0.02f * cos(t * 23f + i)
+            cv.drawCircle(x, y, 0.009f, p)
+        }
+    }
+
     /** Colour transform applied to every colour (silhouette at dusk, haze in the distance). */
     var tint: (Int) -> Int = { it }
 
@@ -283,17 +388,38 @@ class AnimalArt {
         out.close()
     }
 
-    private fun drawLegs(cv: Canvas, sp: Species, pose: Pose, far: Boolean, lowered: Float, color: Int, hoof: Int, bands: Int?) {
+    private fun drawLegs(cv: Canvas, sp: Species, pose: Pose, far: Boolean, lowered: Float, color: Int, hoof: Int, bands: Int?, sock: Int? = null) {
         val legs = SKELETONS.getValue(sp).legs
         for (i in (if (far) intArrayOf(1, 3) else intArrayOf(0, 2))) {
             val l = legs[i]
-            val hx = l.hipX
+            val hx = l.hipX + pose.sway
             val hy = l.hipY + pose.bob + lowered
             ik(hx, hy, pose.feet[i * 2], pose.feet[i * 2 + 1], l.l1, l.l2 - lowered * 0.5f, l.front)
             val col = if (far) scale(color, 0.78f) else color
             val k0x = kx; val k0y = ky; val f0x = fx; val f0y = fy
             seg(cv, hx, hy, k0x, k0y, l.w1, l.w2 * 1.15f, col)
             seg(cv, k0x, k0y, f0x, f0y, l.w2 * 1.1f, l.w2 * 0.85f, col)
+            if (sock != null) { // a darker (or dustier) lower leg, fading in towards the hoof
+                val sx = k0x + (f0x - k0x) * 0.55f; val sy = k0y + (f0y - k0y) * 0.55f
+                val sc = if (far) scale(sock, 0.78f) else sock
+                p.color = 0xFF000000.toInt()
+                p.shader = LinearGradient(sx, sy, f0x, f0y - 0.03f, withAlpha(sc, 0), sc, Shader.TileMode.CLAMP)
+                p.style = Paint.Style.FILL
+                path.reset() // seg() would drop the shader, so draw the taper here
+                val sa = atan2(f0y - sy, f0x - sx); val nx = -sin(sa); val ny = cos(sa)
+                val w1 = l.w2 * 0.99f / 2; val w2 = l.w2 * 0.86f / 2
+                path.moveTo(sx + nx * w1, sy + ny * w1); path.lineTo(f0x + nx * w2, f0y + ny * w2)
+                path.lineTo(f0x - nx * w2, f0y - ny * w2); path.lineTo(sx - nx * w1, sy - ny * w1); path.close()
+                cv.drawPath(path, p)
+                cv.drawCircle(f0x, f0y, w2, p)
+                p.shader = null
+            }
+            if (!far && shading > 0.02f) { // light caught down the front of the near legs
+                stroke(withAlpha(c(0xFFFFF0D8), (34 * shading).toInt()), l.w2 * 0.16f)
+                val o = l.w2 * 0.3f
+                cv.drawLine(hx + o, hy + 0.02f, k0x + o, k0y, p)
+                cv.drawLine(k0x + o * 0.9f, k0y, f0x + o * 0.7f, f0y - 0.03f, p)
+            }
             if (bands != null) {
                 stroke(if (far) withAlpha(bands, 190) else bands, 0.022f)
                 // Thigh and upper arm: bands across the whole width of the leg.
@@ -327,7 +453,8 @@ class AnimalArt {
     )
 
     private fun head(cv: Canvas, x: Float, y: Float, neckAng: Float, pose: Pose, o: HeadStyle, detail: Boolean) {
-        val ha = neckAng + (if (pose.head < 0.5f) 0.9f else 1.35f) + sin(pose.t * 0.5f) * 0.03f
+        // A toss of the head now and then when the flies bother it.
+        val ha = neckAng + (if (pose.head < 0.5f) 0.9f else 1.35f) + sin(pose.t * 0.5f) * 0.03f + pose.ear * pose.swish * 0.06f
         cv.save()
         cv.translate(x, y)
         cv.rotate(Math.toDegrees(ha.toDouble()).toFloat())
@@ -354,8 +481,9 @@ class AnimalArt {
         cv.drawOval(o.len * 0.9f - o.len * 0.14f, -(o.w * 0.45f + chew), o.len * 0.9f + o.len * 0.14f, o.w * 0.45f + chew, p)
         fill(c(0xFF0C0C0C))
         cv.drawCircle(o.len * 0.22f, -o.w * 0.28f, 0.012f, p)
+        if (detail && shading > 0.02f) { fill(withAlpha(c(0xFFFFFFFF), (150 * shading).toInt())); cv.drawCircle(o.len * 0.22f + 0.004f, -o.w * 0.28f - 0.004f, 0.0045f, p) }
         if (o.ear) {
-            val flick = if (max(0f, sin(pose.t * 0.9f + 1f)) > 0.95f) 0.4f else 0f
+            val flick = pose.ear * 0.75f
             cv.save()
             cv.translate(0f, -o.w * 0.55f)
             cv.rotate(Math.toDegrees((-2.2f + flick).toDouble()).toFloat())
@@ -381,8 +509,11 @@ class AnimalArt {
             }
         }
         if (o.beard != null) {
-            stroke(o.beard, 0.03f)
-            cv.drawLine(o.len * 0.3f, o.w * 0.55f, o.len * 0.32f, o.w * 1.6f, p)
+            stroke(o.beard, if (detail) 0.016f else 0.03f)
+            for (k in 0 until (if (detail) 4 else 1)) {
+                val bx = o.len * (0.26f + k * 0.045f)
+                cv.drawLine(bx, o.w * 0.55f, bx + 0.012f + sin(pose.t * 1.3f + k) * 0.008f, o.w * (1.45f + 0.12f * (k % 2)), p)
+            }
         }
         cv.restore()
     }
@@ -398,7 +529,11 @@ class AnimalArt {
 
     // ---- Species -------------------------------------------------------------------------
 
+    private var detailNow = false
+
     fun draw(cv: Canvas, sp: Species, pose: Pose, detail: Boolean) {
+        coatVar = pose.coat
+        detailNow = detail
         when (sp) {
             Species.ZEBRA -> zebra(cv, pose, detail)
             Species.WILDEBEEST -> wildebeest(cv, pose, detail)
@@ -409,14 +544,22 @@ class AnimalArt {
             Species.LION -> lion(cv, pose, detail, male = true)
             Species.LIONESS -> lion(cv, pose, detail, male = false)
         }
+        if (detail) when (sp) { // flies hang round the rump
+            Species.ZEBRA -> flies(cv, pose, -0.4f + pose.sway, -0.78f)
+            Species.WILDEBEEST -> flies(cv, pose, -0.4f + pose.sway, -0.8f)
+            Species.SPRINGBOK -> flies(cv, pose, -0.36f + pose.sway, -0.74f)
+            Species.ELEPHANT, Species.CALF -> flies(cv, pose, -0.42f + pose.sway, -0.95f)
+            Species.GIRAFFE -> flies(cv, pose, -0.3f + pose.sway, -1.3f)
+            Species.LION, Species.LIONESS -> flies(cv, pose, -0.36f, if (pose.act == Act.LIE) -0.28f else -0.6f)
+        }
     }
 
     private val zebraBody = floatArrayOf(0.43f, -0.6f, 0.34f, -0.8f, 0.22f, -0.87f, 0f, -0.84f, -0.24f, -0.86f, -0.4f, -0.82f, -0.48f, -0.7f, -0.45f, -0.55f, -0.34f, -0.46f, -0.05f, -0.42f, 0.2f, -0.45f, 0.38f, -0.5f)
 
     private fun zebra(cv: Canvas, pose: Pose, detail: Boolean) {
-        val white = c(0xFFF2F0E8); val blk = c(0xFF161618); val hoof = c(0xFF1E1E1E)
+        val white = coat(0xFFF2F0E8); val blk = c(0xFF161618); val hoof = c(0xFF1E1E1E)
         drawLegs(cv, Species.ZEBRA, pose, true, 0f, white, hoof, blk)
-        cv.save(); cv.translate(0f, pose.bob)
+        cv.save(); cv.translate(pose.sway, pose.bob)
         outline(clip, zebraBody)
         fill(white); cv.drawPath(clip, p)
         val na = -0.95f + (1f - pose.head) * 1.75f
@@ -438,6 +581,10 @@ class AnimalArt {
             cv.save(); cv.clipRect(-0.7f, -1f, -0.36f, 0f)
             p.strokeWidth = 0.028f
             for (k in 0 until 8) { val y = -0.9f + k * 0.065f; path.reset(); path.moveTo(-0.6f, y); path.quadTo(-0.47f, y - 0.03f, -0.34f, y + 0.045f); cv.drawPath(path, p) }
+            if (detail) { // the plains zebra's faint brown shadow stripes between the black ones
+                stroke(withAlpha(c(0xFF8A7460), 120), 0.012f)
+                for (k in 0 until 7) { val y = -0.868f + k * 0.065f; path.reset(); path.moveTo(-0.6f, y); path.quadTo(-0.47f, y - 0.03f, -0.34f, y + 0.045f); cv.drawPath(path, p) }
+            }
             cv.restore()
             cv.restore()
             cv.save(); cv.clipPath(path2)
@@ -450,8 +597,15 @@ class AnimalArt {
             cv.restore()
         }
         outline(clip, zebraBody); shadeBody(cv)
-        stroke(blk, 0.035f)
-        cv.drawLine(nbx - 0.1f, nby - 0.12f, nx - cos(pa) * 0.07f, ny - sin(pa) * 0.07f, p)
+        paint(cv, white, pose, if (detail) 40 else 0, strength = 0.8f)
+        // The upright mane, striped like the neck.
+        val mx0 = nbx - 0.1f; val my0 = nby - 0.12f; val mx1 = nx - cos(pa) * 0.07f; val my1 = ny - sin(pa) * 0.07f
+        stroke(white, 0.05f); cv.drawLine(mx0, my0, mx1, my1, p)
+        stroke(blk, 0.022f)
+        for (k in 0..7) {
+            val u = k / 7f; val x = mx0 + (mx1 - mx0) * u; val y = my0 + (my1 - my0) * u
+            cv.drawLine(x - cos(pa) * 0.028f, y - sin(pa) * 0.028f, x + cos(pa) * 0.012f, y + sin(pa) * 0.012f, p)
+        }
         head(cv, nx, ny, na, pose, HeadStyle(0.26f, 0.085f, white, blk, ear = true, stripe = blk), detail)
         tail(cv, pose, white, blk, -0.45f, -0.75f, -0.52f, -0.44f, 1.6f)
         cv.restore()
@@ -459,20 +613,25 @@ class AnimalArt {
     }
 
     private fun tail(cv: Canvas, pose: Pose, col: Int, tuft: Int, x0: Float, y0: Float, x1: Float, y1: Float, speed: Float) {
-        val tw = sin(pose.t * speed) * 0.05f
+        // Swatting at flies, it swings harder and flicks up against the flank.
+        val tw = sin(pose.tail * speed) * (0.05f + 0.13f * pose.swish)
+        val up = abs(tw) * 1.3f * pose.swish
         stroke(col, 0.03f)
-        path.reset(); path.moveTo(x0, y0); path.quadTo(x1 - 0.01f, (y0 + y1) / 2f + tw, x1 + tw, y1)
+        path.reset(); path.moveTo(x0, y0); path.quadTo(x1 - 0.01f, (y0 + y1) / 2f + tw * 0.5f - up * 0.4f, x1 + tw, y1 - up)
         cv.drawPath(path, p)
         fill(tuft)
-        cv.drawOval(x1 + tw - 0.02f, y1 - 0.03f, x1 + tw + 0.02f, y1 + 0.07f, p)
+        cv.save(); cv.translate(x1 + tw, y1 - up); cv.rotate(-tw * 300f)
+        cv.drawOval(-0.02f, -0.03f, 0.02f, 0.07f, p)
+        if (detailNow) { stroke(withAlpha(scale(tuft, 0.7f), 160), 0.006f); cv.drawLine(-0.008f, 0f, -0.012f, 0.065f, p); cv.drawLine(0.008f, 0f, 0.01f, 0.066f, p) }
+        cv.restore()
     }
 
     private val gnuBody = floatArrayOf(0.42f, -0.62f, 0.36f, -0.86f, 0.2f, -0.96f, 0f, -0.88f, -0.22f, -0.78f, -0.38f, -0.74f, -0.46f, -0.64f, -0.42f, -0.5f, -0.3f, -0.44f, -0.02f, -0.42f, 0.22f, -0.46f, 0.38f, -0.52f)
 
     private fun wildebeest(cv: Canvas, pose: Pose, detail: Boolean) {
-        val body = c(0xFF60584E); val dk = c(0xFF221E1C); val hoof = c(0xFF1E1E1E)
-        drawLegs(cv, Species.WILDEBEEST, pose, true, 0f, scale(body, 0.75f), hoof, null)
-        cv.save(); cv.translate(0f, pose.bob)
+        val body = coat(0xFF60584E); val dk = c(0xFF221E1C); val hoof = c(0xFF1E1E1E)
+        drawLegs(cv, Species.WILDEBEEST, pose, true, 0f, scale(body, 0.75f), hoof, null, scale(body, 0.5f))
+        cv.save(); cv.translate(pose.sway, pose.bob)
         outline(clip, gnuBody)
         p.style = Paint.Style.FILL
         p.shader = LinearGradient(0f, -0.95f, 0f, -0.42f, scale(body, 1.08f), scale(body, 0.86f), Shader.TileMode.CLAMP)
@@ -484,27 +643,37 @@ class AnimalArt {
             while (x < 0.42f) { path.reset(); path.moveTo(x, -0.98f); path.quadTo(x + 0.02f, -0.7f, x - 0.02f, -0.45f); cv.drawPath(path, p); x += 0.045f }
             cv.restore()
         }
+        paint(cv, body, pose, if (detail) 45 else 0)
         val na = -0.7f + (1f - pose.head) * 1.55f
         val nbx = 0.3f; val nby = -0.78f
         val nx = nbx + cos(na) * 0.3f; val ny = nby + sin(na) * 0.3f; val pa = na + PI.toFloat() / 2f
         fill(body)
         neckQuad(path2, nbx, nby, nx, ny, pa, 0.12f, 0.08f, 0.09f, 0.14f, 0.18f)
         cv.drawPath(path2, p)
+        if (detail) { clip.set(path2); paint(cv, body, pose, 12, rims = false) }
         stroke(dk, 0.06f)
-        cv.drawLine(nbx - 0.13f, nby - 0.14f, nx - cos(pa) * 0.08f, ny - sin(pa) * 0.08f, p)
-        head(cv, nx, ny, na, pose, HeadStyle(0.27f, 0.1f, scale(body, 0.8f), dk, ear = true, horns = true, beard = c(0xFFDCD4C4)), detail)
+        val mx0 = nbx - 0.13f; val my0 = nby - 0.14f; val mx1 = nx - cos(pa) * 0.08f; val my1 = ny - sin(pa) * 0.08f
+        cv.drawLine(mx0, my0, mx1, my1, p)
+        if (detail) { // a shaggy black mane
+            stroke(dk, 0.014f)
+            for (k in 0..8) {
+                val u = k / 8f; val x = mx0 + (mx1 - mx0) * u; val y = my0 + (my1 - my0) * u
+                cv.drawLine(x, y, x - cos(pa) * 0.055f - 0.02f, y - sin(pa) * 0.055f, p)
+            }
+        }
+        head(cv, nx, ny, na, pose, HeadStyle(0.27f, 0.1f, scale(body, 0.8f), dk, ear = true, horns = true, beard = c(0xFF2A2522)), detail)
         tail(cv, pose, dk, dk, -0.45f, -0.66f, -0.5f, -0.3f, 1.4f)
         cv.restore()
-        drawLegs(cv, Species.WILDEBEEST, pose, false, 0f, scale(body, 0.85f), hoof, null)
+        drawLegs(cv, Species.WILDEBEEST, pose, false, 0f, scale(body, 0.85f), hoof, null, scale(body, 0.55f))
     }
 
     private val springbokBody = floatArrayOf(0.36f, -0.56f, 0.3f, -0.72f, 0.18f, -0.76f, -0.02f, -0.73f, -0.26f, -0.77f, -0.38f, -0.74f, -0.43f, -0.64f, -0.38f, -0.53f, -0.26f, -0.49f, 0f, -0.48f, 0.2f, -0.49f, 0.32f, -0.51f)
 
     private fun springbok(cv: Canvas, pose: Pose, detail: Boolean) {
-        val tan = c(0xFFC48C54); val str = c(0xFF763C26); val wh = c(0xFFF6F2EA); val hoof = c(0xFF1E1E1E)
+        val tan = coat(0xFFC48C54); val str = c(0xFF763C26); val wh = c(0xFFF6F2EA); val hoof = c(0xFF1E1E1E)
         val leap = pose.act == Act.PRONK && pose.bob < -0.03f
         drawLegs(cv, Species.SPRINGBOK, pose, true, 0f, mix(wh, tan, 0.25f), hoof, null)
-        cv.save(); cv.translate(0f, pose.bob)
+        cv.save(); cv.translate(pose.sway, pose.bob)
         if (leap) cv.rotate(2.9f)
         outline(clip, springbokBody)
         fill(wh); cv.drawPath(clip, p)
@@ -523,6 +692,7 @@ class AnimalArt {
             cv.drawPath(path, p)
         }
         cv.restore()
+        paint(cv, tan, pose, if (detail) 34 else 0, strength = 0.65f)
         val na = -1.0f + (1f - pose.head) * 1.7f + (if (leap) 0.25f else 0f)
         val nbx = 0.27f; val nby = -0.66f
         val nx = nbx + cos(na) * 0.3f; val ny = nby + sin(na) * 0.3f; val pa = na + PI.toFloat() / 2f
@@ -536,7 +706,7 @@ class AnimalArt {
             cv.restore()
         }
         head(cv, nx, ny, na, pose, HeadStyle(0.2f, 0.065f, wh, c(0xFF3C2C24), ear = true, earCol = tan, earLen = 1.4f, eyeStripe = c(0xFF6E3E28), lyre = true), detail)
-        val tw = sin(pose.t * 2.2f) * 0.03f
+        val tw = sin(pose.tail * 2.2f) * (0.03f + 0.05f * pose.swish)
         stroke(wh, 0.025f); cv.drawLine(-0.42f, -0.7f, -0.47f + tw * 0.5f, -0.6f, p)
         stroke(c(0xFF161412), 0.02f); cv.drawLine(-0.46f + tw * 0.5f, -0.62f, -0.48f + tw * 0.5f, -0.57f, p)
         cv.restore()
@@ -546,10 +716,11 @@ class AnimalArt {
     private val elephantBody = floatArrayOf(0.42f, -0.5f, 0.38f, -0.9f, 0.2f, -1.0f, -0.05f, -0.98f, -0.3f, -0.92f, -0.46f, -0.78f, -0.5f, -0.58f, -0.42f, -0.42f, -0.1f, -0.38f, 0.2f, -0.4f, 0.36f, -0.42f)
 
     private fun elephant(cv: Canvas, pose: Pose, detail: Boolean, calf: Boolean) {
-        val sk = c(0xFF807B74); val dk = c(0xFF46423E)
+        val sk = coat(0xFF807B74); val dk = c(0xFF46423E)
+        val mud = mix(sk, c(0xFF8C5E40), 0.45f) // red Kalahari dust caked on the legs and belly
         val sp = if (calf) Species.CALF else Species.ELEPHANT
-        drawLegs(cv, sp, pose, true, 0f, sk, scale(sk, 0.8f), null)
-        cv.save(); cv.translate(0f, pose.bob)
+        drawLegs(cv, sp, pose, true, 0f, sk, scale(sk, 0.8f), null, mud)
+        cv.save(); cv.translate(pose.sway, pose.bob)
         outline(clip, elephantBody)
         p.style = Paint.Style.FILL
         p.shader = LinearGradient(0f, -1f, 0f, -0.38f, scale(sk, 1.06f), scale(sk, 0.85f), Shader.TileMode.CLAMP)
@@ -560,6 +731,12 @@ class AnimalArt {
             for (k in 0 until 9) { path.reset(); path.moveTo(-0.45f + k * 0.08f, -0.5f); path.quadTo(-0.42f + k * 0.08f, -0.7f, -0.46f + k * 0.08f, -0.9f); cv.drawPath(path, p) }
             cv.restore()
         }
+        cv.save(); cv.clipPath(clip)
+        p.style = Paint.Style.FILL; p.color = 0xFF000000.toInt()
+        p.shader = LinearGradient(0f, -0.62f, 0f, -0.38f, withAlpha(mud, 0), withAlpha(mud, 120), Shader.TileMode.CLAMP)
+        cv.drawRect(-0.6f, -0.7f, 0.5f, -0.3f, p); p.shader = null
+        cv.restore()
+        paint(cv, sk, pose, if (detail) 60 else 0, jitter = 6.3f) // mottled hide rather than hair
         val hx = 0.44f; val hy = -0.86f
         fill(sk); cv.drawOval(hx - 0.17f, hy - 0.2f, hx + 0.17f, hy + 0.2f, p)
         val sw = sin(pose.t * 0.6f) * 0.04f
@@ -580,7 +757,7 @@ class AnimalArt {
             cv.drawPath(path, p)
         }
         // Ear, shaped like Africa, gently flapping.
-        cv.save(); cv.translate(hx - 0.08f, hy - 0.02f); cv.scale(0.85f + 0.15f * sin(pose.t * 0.8f), 1f)
+        cv.save(); cv.translate(hx - 0.08f, hy - 0.02f); cv.scale(0.85f + 0.15f * sin(pose.t * 0.8f) - 0.12f * pose.ear, 1f)
         fill(scale(sk, 0.9f))
         path.reset(); path.moveTo(0f, -0.16f); path.quadTo(-0.2f, -0.2f, -0.22f, 0f); path.quadTo(-0.2f, 0.18f, -0.06f, 0.26f); path.quadTo(0.02f, 0.12f, 0.02f, 0f); path.close()
         cv.drawPath(path, p)
@@ -588,10 +765,10 @@ class AnimalArt {
         cv.restore()
         fill(c(0xFF111111)); cv.drawCircle(hx + 0.06f, hy - 0.04f, 0.014f, p)
         stroke(dk, 0.02f)
-        val tw = sin(pose.t * 1.1f) * 0.03f
+        val tw = sin(pose.tail * 1.1f) * (0.03f + 0.06f * pose.swish)
         path.reset(); path.moveTo(-0.48f, -0.78f); path.quadTo(-0.53f, -0.6f, -0.52f + tw, -0.48f); cv.drawPath(path, p)
         cv.restore()
-        drawLegs(cv, sp, pose, false, 0f, sk, scale(sk, 0.8f), null)
+        drawLegs(cv, sp, pose, false, 0f, sk, scale(sk, 0.8f), null, mud)
         if (detail) {
             fill(c(0xFFD6CEBE))
             for (i in intArrayOf(0, 2)) for (k in -1..1) cv.drawCircle(pose.feet[i * 2] + 0.02f + k * 0.035f, pose.feet[i * 2 + 1] - 0.012f, 0.012f, p)
@@ -601,9 +778,9 @@ class AnimalArt {
     private val giraffeBody = floatArrayOf(0.38f, -1.2f, 0.3f, -1.42f, 0.1f, -1.44f, -0.12f, -1.32f, -0.3f, -1.22f, -0.36f, -1.08f, -0.3f, -0.98f, -0.05f, -0.98f, 0.2f, -1.02f, 0.34f, -1.06f)
 
     private fun giraffe(cv: Canvas, pose: Pose, detail: Boolean) {
-        val base = c(0xFFE4BA76); val pat = c(0xFF78401E); val legC = mix(base, c(0xFFC8AA78), 0.2f)
+        val base = coat(0xFFE4BA76); val pat = coat(0xFF78401E); val legC = mix(base, c(0xFFC8AA78), 0.2f)
         drawLegs(cv, Species.GIRAFFE, pose, true, 0f, legC, c(0xFF2A2420), null)
-        cv.save(); cv.translate(0f, pose.bob)
+        cv.save(); cv.translate(pose.sway, pose.bob)
         outline(clip, giraffeBody)
         fill(base); cv.drawPath(clip, p)
         shadeBody(cv)
@@ -619,6 +796,7 @@ class AnimalArt {
         } else {
             fill(withAlpha(pat, 110)); cv.drawPath(clip, p)
         }
+        paint(cv, base, pose, if (detail) 26 else 0, strength = 0.8f)
         stroke(scale(pat, 0.8f), 0.03f)
         cv.drawLine(bx - 0.1f, by - 0.06f, nx - cos(pa) * 0.05f, ny - sin(pa) * 0.05f, p)
         cv.save(); cv.translate(nx, ny); cv.rotate(Math.toDegrees((na + 1.25f).toDouble()).toFloat())
@@ -629,6 +807,9 @@ class AnimalArt {
         stroke(scale(pat, 0.7f), 0.018f)
         cv.drawLine(0f, -0.05f, -0.02f, -0.12f, p); cv.drawLine(0.03f, -0.05f, 0.03f, -0.12f, p)
         fill(c(0xFF1A1A1A)); cv.drawCircle(-0.02f, -0.12f, 0.012f, p); cv.drawCircle(0.03f, -0.12f, 0.012f, p)
+        cv.save(); cv.translate(-0.01f, -0.04f); cv.rotate(Math.toDegrees((-2.5f + pose.ear * 0.7f).toDouble()).toFloat())
+        fill(scale(base, 0.85f)); cv.drawOval(0f, -0.016f, 0.075f, 0.016f, p)
+        cv.restore()
         fill(c(0xFF0C0C0C)); cv.drawCircle(0.05f, -0.015f, 0.01f, p)
         cv.restore()
         tail(cv, pose, scale(base, 0.8f), c(0xFF1A1A1A), -0.35f, -1.16f, -0.4f, -0.78f, 1.2f)
@@ -649,6 +830,7 @@ class AnimalArt {
                 r = (r * 9301 + 49297) % 233280
                 val j = r / 233280f
                 val cx = x + (j - 0.5f) * 0.03f + (row % 2) * 0.035f
+                p.color = scale(col, 0.86f + 0.24f * j) // no two patches quite the same brown
                 path.reset()
                 path.moveTo(cx - 0.03f, y - 0.02f); path.lineTo(cx, y - 0.033f); path.lineTo(cx + 0.032f, y - 0.015f)
                 path.lineTo(cx + 0.028f, y + 0.02f); path.lineTo(cx - 0.005f, y + 0.032f); path.lineTo(cx - 0.033f, y + 0.012f); path.close()
@@ -745,9 +927,19 @@ class AnimalArt {
             path.close()
             cv.drawPath(path, p)
         }
+        if (shading > 0.02f) { // strands of the mane
+            stroke(withAlpha(mix(outer, inner, .4f), (170 * shading).toInt()), .012f)
+            for (i in 0 until 20) {
+                val a = i / 20f * PI.toFloat() * 2f + .1f
+                val back = if (cos(a) < 0f) 1f else 0f
+                val r0 = .09f * z
+                val r1 = (.15f + .05f * back + .04f * max(0f, sin(a))) * z
+                cv.drawLine(cos(a) * r0 * 1.05f - .03f, sin(a) * r0, cos(a + .1f) * r1 * 1.05f - .03f, sin(a + .1f) * r1, p)
+            }
+        }
     }
 
-    private fun lionHead(cv: Canvas, x: Float, y: Float, ang: Float, male: Boolean, coat: Int, t: Float) {
+    private fun lionHead(cv: Canvas, x: Float, y: Float, ang: Float, male: Boolean, coat: Int, t: Float, ear: Float) {
         cv.save()
         cv.translate(x, y)
         cv.rotate(Math.toDegrees(ang.toDouble()).toFloat())
@@ -765,13 +957,14 @@ class AnimalArt {
         path.reset(); path.moveTo(.165f, .005f); path.quadTo(.15f, .04f, .11f, .045f); cv.drawPath(path, p)
         fill(c(0xFF2A1A10)); oval(cv, .05f, -.045f, .016f, .009f, -.2f)
         fill(lt); oval(cv, .05f, -.06f, .02f, .006f, -.2f)
-        fill(coat); oval(cv, -.045f, -.08f, .032f, .028f, -.4f)
-        fill(dk); oval(cv, -.045f, -.078f, .018f, .016f, -.4f)
+        val ea = -.4f - ear * .6f // the ear flicks back
+        fill(coat); oval(cv, -.045f - ear * .01f, -.08f, .032f, .028f, ea)
+        fill(dk); oval(cv, -.045f - ear * .01f, -.078f, .018f, .016f, ea)
         cv.restore()
     }
 
     private fun lion(cv: Canvas, pose: Pose, detail: Boolean, male: Boolean) {
-        val coat = mix(c(0xFFCEA062), c(0xFFB08046), SavannaDesign.LION_COAT)
+        val coat = mix(coat(0xFFCEA062), coat(0xFFB08046), SavannaDesign.LION_COAT)
         val belly = mix(coat, c(0xFFF0DEB8), .55f)
         val back = mix(coat, c(0xFF785028), .25f)
         val dk = c(0xFF462C18)
@@ -783,15 +976,16 @@ class AnimalArt {
             p.style = Paint.Style.FILL
             p.shader = LinearGradient(0f, -.34f, 0f, 0f, back, belly, Shader.TileMode.CLAMP)
             cv.drawPath(clip, p); p.shader = null
+            paint(cv, coat, pose, if (detail) 36 else 0, flow = 1.9f)
             fill(coat); oval(cv, -.27f, -.13f, .13f, .1f, -.25f)
             val farC = mix(coat, c(0xFF281A0E), .2f)
             seg(cv, .24f, -.12f, .52f, -.035f, .1f, .065f, farC); oval(cv, .555f, -.026f, .055f, .027f)
             seg(cv, .2f, -.1f, .48f, -.03f, .1f, .065f, coat); oval(cv, .515f, -.026f, .058f, .028f)
-            val tw = sin(t * .8f) * .04f
+            val tw = sin(pose.tail * .8f) * (.04f + .1f * pose.swish)
             stroke(coat, .028f)
             path.reset(); path.moveTo(-.44f, -.08f); path.cubicTo(-.6f, -.02f, -.7f, -.03f, -.76f, -.05f + tw); cv.drawPath(path, p)
             fill(dk); oval(cv, -.78f, -.05f + tw, .035f, .022f)
-            lionHead(cv, .37f, -.45f, -.05f + sin(t * .4f) * .04f, male, coat, t)
+            lionHead(cv, .37f, -.45f, -.05f + sin(t * .4f) * .04f, male, coat, t, pose.ear)
             return
         }
         val gallop = pose.act == Act.RUN
@@ -817,7 +1011,8 @@ class AnimalArt {
         p.shader = LinearGradient(0f, -.6f, 0f, -.27f, intArrayOf(back, coat, belly), floatArrayOf(0f, .55f, 1f), Shader.TileMode.CLAMP)
         cv.drawPath(clip, p); p.shader = null
         if (detail) { fill(withAlpha(mix(coat, c(0xFFFFF0D2), .25f), 64)); oval(cv, -.3f, -.42f, .12f, .1f) }
-        val ta = if (gallop) -.1f else sin(t * 1.1f) * .05f
+        paint(cv, coat, pose, if (detail) 40 else 0, flow = 1.9f)
+        val ta = if (gallop) -.1f else sin(pose.tail * 1.1f) * (.05f + .12f * pose.swish)
         stroke(coat, .03f)
         path.reset(); path.moveTo(-.43f, -.5f)
         if (gallop) path.cubicTo(-.6f, -.52f, -.72f, -.5f, -.82f, -.56f) else path.cubicTo(-.56f, -.42f, -.6f, -.2f, -.6f + ta, -.12f)
@@ -840,7 +1035,7 @@ class AnimalArt {
         path.reset(); path.moveTo(.2f, -.6f + sh); path.quadTo(hx - .05f, hy - .06f, hx, hy - .06f); path.lineTo(hx + .02f, hy + .07f); path.quadTo(.36f, -.36f, .3f, -.32f); path.close()
         cv.drawPath(path, p)
         if (stalk) { fill(withAlpha(back, 153)); oval(cv, .22f, -.59f, .05f, .03f) }
-        lionHead(cv, hx, hy + nod, ha, male, coat, t)
+        lionHead(cv, hx, hy + nod, ha, male, coat, t, pose.ear)
         cv.restore()
     }
 

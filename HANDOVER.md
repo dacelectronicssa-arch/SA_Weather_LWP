@@ -55,6 +55,20 @@ The user asks for a new branch for each new scene.
     - It also switches on automatically while Android's Battery Saver is on, unless that option is unticked in Settings (`ultra_on_battery_saver`).
     - The demo and the fireworks preview always play smoothly.
     - Debug: `--ei fps 0`. Test it with Battery Saver via `adb shell cmd power set-mode 1` (and `0` to turn it off).
+- **Savanna animals** (`SavannaWildlife.kt`, `AnimalArt.kt`):
+  - **Turns:** an animal eases round (`dir` is where it wants to face, `facing` swings towards it) and narrows mid-turn instead of flipping in a single frame.
+  - **Idle life** (`idle()`):
+    - Flies arrive every 6–20 s and are drawn as dots round the rump. While they're about, the tail swats harder and faster and the ears flick often.
+    - Grazers lift and replant one foot every few seconds (`Pose.plant` and `stepLeg`) and lean with it (`Pose.sway`).
+  - **Herd spacing:**
+    - Animals on the same strip of ground (`sameLane`) keep a body's length apart (`clearance`).
+    - Walkers stop short of anyone in their way (`reach`), and grazing spots avoid taken ones (`crowded`).
+    - On the walk back after the lions, each animal gets its own spot. A blocked animal waits behind the one ahead; if it's still stuck out of sight, it takes a detour.
+    - Fleeing animals and the elephant family (calf with adults) are exempt.
+  - **Painterly art** (`paint()`):
+    - Brush dabs along the hair, warm rim light on the back, a darker belly edge and per-animal coat variation (`Pose.coat`).
+    - Detail: a striped zebra mane with shadow stripes, a shaggy wildebeest mane and beard, mottled elephants with red dust on their legs, varied giraffe patches and lion mane strands.
+    - Brush dabs only appear on near animals (`detail`); everything fades flat for dusk silhouettes (`shading`).
 - **Demo mode:** `runDemo()` in `WeatherWallpaperService.kt` plays a 60-second tour suited to each scene.
 
 ## Code map (`app/src/main/java/com/weatherwall/app/`)
