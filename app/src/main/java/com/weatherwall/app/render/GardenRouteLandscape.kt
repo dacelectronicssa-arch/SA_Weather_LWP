@@ -163,7 +163,8 @@ class GardenRouteLandscape(
         return out.toFloatArray()
     }
 
-    private class Shore(val pts: FloatArray, val haze: Float, val path: Path)
+    /** A shoreline for the live surf; rocks get a [ring] (their foam collar) instead of a line. */
+    private class Shore(val pts: FloatArray, val haze: Float, val path: Path, val ring: RectF? = null)
     private val shores = ArrayList<Shore>()
 
     /** Coastal grass and scrub with orange earth cuts and grey rock faces, inside the current clip. */
@@ -240,13 +241,11 @@ class GardenRouteLandscape(
         val r = Mulberry32(seed)
         val pts = FloatArray(16)
         for (i in 0 until 8) { val a = PI.toFloat() + i / 7f * PI.toFloat(); val q = 0.7f + r.next() * 0.4f; pts[i * 2] = x + cos(a) * s * 1.3f * q; pts[i * 2 + 1] = y + sin(a) * s * 1.6f * q }
-        p.style = Paint.Style.STROKE; p.color = withAlpha(pal.seaShallow, 180); p.strokeWidth = s * 0.6f
-        sea.drawLine(x - s * 1.5f, y, x + s * 1.5f, y, p)
+        fill(withAlpha(pal.seaShallow, 150)); sea.drawOval(x - s * 1.9f, y - s * 0.32f, x + s * 1.9f, y + s * 0.42f, p) // shallows round its foot
         fill(mix(pal.rock, Color.BLACK, 0.1f)); land.drawPath(polyPath(pts), p)
         val shade = floatArrayOf(x, y - s * 1.5f, *pts.copyOfRange(8, 16))
         fill(mix(pal.rock, Color.BLACK, 0.4f)); land.drawPath(polyPath(shade), p)
-        val sh = floatArrayOf(x - s * 1.6f, y + 1f, x, y + s * 0.3f, x + s * 1.6f, y + 1f)
-        shores += Shore(sh, 0.15f, Path(polyPath(sh, false)))
+        shores += Shore(floatArrayOf(x, y), 0.15f, Path(), RectF(x - s * 1.45f, y - s * 0.16f, x + s * 1.45f, y + s * 0.24f))
     }
 
     // ---- Baked layers ----------------------------------------------------------------------------
@@ -485,6 +484,18 @@ class GardenRouteLandscape(
         p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND; p.shader = null
         val dim = if (night) 0.5f else 1f
         for ((i, s) in shores.withIndex()) {
+            val ring = s.ring
+            if (ring != null) { // a rock: a soft foam collar that swells and settles, and a wash spreading out
+                val ph = ((time * 0.22f + i * 0.37f) % 1f)
+                val swell = 0.5f + 0.5f * sin(time * 1.1f + i * 2.1f)
+                p.pathEffect = null
+                p.color = withAlpha(pal.foam, ((0.55f + 0.3f * swell) * dim * 255).toInt()); p.strokeWidth = ring.height() * (0.35f + 0.2f * swell)
+                c.drawOval(ring, p)
+                val gx = ring.width() * 0.5f * (0.15f + ph * 0.5f); val gy = ring.height() * 0.5f * (0.3f + ph * 1.2f)
+                p.color = withAlpha(pal.foam, ((1f - ph) * 0.45f * dim * 255).toInt()); p.strokeWidth = max(1f, ring.height() * 0.18f * (1f - ph))
+                c.drawOval(ring.left - gx, ring.top - gy * 0.6f, ring.right + gx, ring.bottom + gy, p)
+                continue
+            }
             val wash = 0.5f + 0.5f * sin(time * 0.9f + i * 1.7f); val near = 1f - s.haze
             p.color = withAlpha(mix(pal.foam, pal.haze, s.haze * 0.5f), ((0.45f + 0.5f * wash) * dim * 255).toInt())
             p.strokeWidth = (2f + 9f * near) * (0.6f + 0.5f * wash) * k
@@ -570,7 +581,7 @@ class GardenRouteLandscape(
     private fun minutes(a: Float, b: Float) = ((a + rnd.nextFloat() * (b - a)) * 60_000f).toLong()
 
     private fun schedule() {
-        val now = System.currentTimeMillis()
+        val now = GardenClock.now()
         if (nextTrainAt == 0L) nextTrainAt = now + minutes(0.3f, 1f)
         if (nextBungyAt == 0L) nextBungyAt = now + minutes(0.4f, 1.2f)
         if (nextBaseAt == 0L) nextBaseAt = now + minutes(2.5f, 5f)

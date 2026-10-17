@@ -13,6 +13,11 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
 
+/** The Garden Route's wall clock for its visitor schedules (tests can wind it forward). */
+object GardenClock {
+    var now: () -> Long = { System.currentTimeMillis() }
+}
+
 /**
  * Life in the Garden Route bay, seen from high in the gorge: southern right whales, a dolphin pod,
  * a whale-watching catamaran, a ski-boat, yachts, a jetski and ships on the horizon.
@@ -100,7 +105,7 @@ class GardenBay(
 
     // ---- Southern right whales -----------------------------------------------------------------------
 
-    private class Whale(var x: Float, val y: Float, var dir: Float, var t: Float, var cycle: Int)
+    private class Whale(var x: Float, val y: Float, var dir: Float, var t: Float, var cycle: Int) { var on = false; var until = 0f }
     private val whales = listOf(Whale(w * 0.3f, hz + 120f * k, 1f, 2f, 0), Whale(w * 0.62f, hz + 195f * k, -1f, 9f, 1))
     private val cycleLen = 18f
 
@@ -168,6 +173,7 @@ class GardenBay(
 
     private fun drawWhales(c: Canvas) {
         for (wh in whales) {
+            if (!wh.on) continue
             val s = ppm(wh.y, WHALE_EX); val u = wh.t % cycleLen; val f = fs(wh.y)
             val breach = wh.cycle % 3 == 2
             when {
@@ -294,7 +300,7 @@ class GardenBay(
 
     // ---- Boats ------------------------------------------------------------------------------------------
 
-    private class Boat(val kind: Int, var x: Float, val y: Float, var dir: Float, val v: Float, var t: Float = 0f)
+    private class Boat(val kind: Int, var x: Float, val y: Float, var dir: Float, val v: Float, var t: Float = 0f) { var on = false }
     private val boats = listOf(
         Boat(CAT, w * 0.6f, hz + 128f * k, -1f, 2.2f), Boat(SKI, w * 0.1f, hz + 180f * k, 1f, 6f),
         Boat(YACHT, w * 0.45f, hz + 70f * k, 1f, 1.6f), Boat(YACHT, w * 0.85f, hz + 95f * k, -1f, 2f),
@@ -404,12 +410,13 @@ class GardenBay(
 
     // ---- Ships on the horizon ---------------------------------------------------------------------------
 
-    private class Ship(var x: Float, val y: Float, val dir: Float, val tanker: Boolean, val v: Float)
+    private class Ship(var x: Float, val y: Float, var dir: Float, val tanker: Boolean, val v: Float) { var on = false }
     private val ships = listOf(Ship(w * 0.25f, hz + 14f * k, 1f, false, 7.5f), Ship(w * 0.95f, hz + 24f * k, -1f, true, 6f))
     private val boxCols = intArrayOf(0xFFB8402E.toInt(), 0xFF2F5C8A.toInt(), 0xFFD9A441.toInt(), 0xFF5A7F45.toInt(), 0xFF8C8C88.toInt(), 0xFF7A3A2E.toInt(), 0xFFDDDDD6.toInt())
 
     private fun drawShips(c: Canvas) {
         for (sh in ships) {
+            if (!sh.on) continue
             val s = ppm(sh.y, 4f)
             val haze = 0.45f
             fun hz(col: Int) = mix(col, hazeColour, haze)
@@ -458,64 +465,134 @@ class GardenBay(
 
     // ---- Frame ----------------------------------------------------------------------------------------
 
-    private fun wrap(x: Float) = if (x > w + 80f * k) -80f * k else if (x < -80f * k) w + 80f * k else x
+    // ---- Who's out on the water --------------------------------------------------------------------
+    // Each visitor has its own lane with a wall-clock gap after it leaves; at most [MAX_OUT] are out
+    // at once (and one ship on the horizon), so the bay is lively but never crowded. A lane that
+    // comes due while the bay is full waits for a gap.
+
+    private fun gap(lane: Int): Long { val (a, b) = GAPS[lane]; return ((a + rnd.nextFloat() * (b - a)) * 60_000f).toLong() }
+
+    init {
+        val now = GardenClock.now()
+        for (i in nextAt.indices) if (nextAt[i] == 0L || nextAt[i] == Long.MAX_VALUE) nextAt[i] = now + (((FIRST[i] + rnd.nextFloat() * FIRST[i]) * 60_000f).toLong())
+    }
+
+    private fun out(lane: Int) = when (lane) {
+        0, 1 -> whales[lane].on
+        in 2..5 -> boats[lane - 2].on
+        6 -> jetskiFor > 0f
+        7 -> podFor > 0f
+        else -> ships[lane - 8].on
+    }
+
+    private fun allowed(lane: Int) = when (lane) {
+        0, 1, 8, 9 -> true                      // whales and ships, day or night
+        3 -> true                               // the ski-boat goes out at night too, lights on
+        else -> daylightVisitors
+    }
+
+    private fun boatMargin(b: Boat) = ppm(b.y, if (b.kind == JETSKI) 6f else 4.5f) * 40f
+
+    private fun launch(lane: Int) {
+        val r = rnd.nextFloat()
+        when (lane) {
+            0, 1 -> { val wh = whales[lane]; wh.on = true; wh.x = w * (0.2f + 0.6f * r); wh.dir = if (rnd.nextBoolean()) 1f else -1f
+                wh.t = (wh.t / cycleLen).toInt() * cycleLen + cycleLen - 0.01f // it shows itself by surfacing
+                wh.until = time + (if (lane == 0) 3f + r * 3f else 2f + r * 2f) * 60f }
+            in 2..5 -> { val b = boats[lane - 2]; b.on = true; b.dir = if (rnd.nextBoolean()) 1f else -1f; b.x = if (b.dir > 0f) -boatMargin(b) else w + boatMargin(b) }
+            6 -> jetskiFor = 60f + r * 40f
+            7 -> podFor = 50f + r * 40f
+            else -> { val sh = ships[lane - 8]; sh.on = true; sh.dir = if (rnd.nextBoolean()) 1f else -1f; sh.x = if (sh.dir > 0f) -300f * k else w + 300f * k }
+        }
+        nextAt[lane] = Long.MAX_VALUE // booked again when it leaves
+    }
+
+    private var lastCount = 0
+
+    private fun schedule() {
+        val now = GardenClock.now()
+        var busyCount = (0..7).count { out(it) }
+        // A breather after anyone leaves, so the bay has quiet spells rather than an endless relay.
+        if (busyCount < lastCount) quietUntil = now + 40_000L + (rnd.nextFloat() * 80_000f).toLong()
+        lastCount = busyCount
+        var pick = -1
+        for (lane in 0..9) {
+            if (out(lane)) continue
+            if (nextAt[lane] == Long.MAX_VALUE) nextAt[lane] = now + gap(lane) // it has just left
+            if (now < nextAt[lane] || !allowed(lane)) continue
+            if (lane >= 8) { if (ships.none { it.on }) launch(lane); continue }
+            if (pick < 0 || nextAt[lane] < nextAt[pick]) pick = lane // whoever has waited longest goes next
+        }
+        if (pick >= 0 && busyCount < MAX_OUT && now >= quietUntil) { launch(pick); lastCount = busyCount + 1 }
+    }
 
     fun update(dt: Float) {
         time += dt
         for (wh in whales) {
+            if (!wh.on) continue
             val s = ppm(wh.y, WHALE_EX)
             val before = wh.t % cycleLen
             wh.t += dt
             if (wh.t % cycleLen < before) wh.cycle++
-            wh.x = wrap(wh.x + wh.dir * 1.0f * s * dt)
+            wh.x += wh.dir * 1.0f * s * dt
+            if (wh.x < w * 0.08f || wh.x > w * 0.92f) wh.dir = -wh.dir
+            if (time > wh.until && wh.t % cycleLen >= 17.5f) wh.on = false // leaves after a dive
         }
-        for (b in boats) { val s = ppm(b.y, 4.5f); b.x = wrap(b.x + b.dir * b.v * s * 0.25f * dt) }
+        for (b in boats) {
+            if (!b.on) continue
+            b.x += b.dir * b.v * ppm(b.y, 4.5f) * 0.5f * dt
+            val m = boatMargin(b)
+            if ((b.dir > 0f && b.x > w + m) || (b.dir < 0f && b.x < -m)) b.on = false
+        }
         for (sh in ships) {
+            if (!sh.on) continue
             sh.x += sh.dir * sh.v * ppm(sh.y, 4f) * 0.25f * dt
-            if (sh.x > w + 400f * k) sh.x = -400f * k; if (sh.x < -400f * k) sh.x = w + 400f * k
+            if ((sh.dir > 0f && sh.x > w + 300f * k) || (sh.dir < 0f && sh.x < -300f * k)) sh.on = false
         }
         if (jetskiFor > 0f) {
             jetskiFor -= dt; jetski.t += dt
             jetski.x += jetski.dir * jetski.v * ppm(jetski.y, 6f) * 0.25f * dt
             if (jetski.x > w * 0.8f) jetski.dir = -1f; if (jetski.x < w * 0.25f) jetski.dir = 1f
-        } else if (daylightVisitors) {
-            val now = System.currentTimeMillis()
-            if (jetskiAt == 0L) jetskiAt = now + ((0.5f + rnd.nextFloat() * 2f) * 60_000f).toLong()
-            if (now >= jetskiAt) { jetskiFor = 60f + rnd.nextFloat() * 40f; jetskiAt = now + ((4f + rnd.nextFloat() * 6f) * 60_000f).toLong() }
         }
         if (podFor > 0f) {
             podFor -= dt; podT += dt
             podX += podDir * 4f * ppm(podY, 8f) * dt
             if (podX > w * 0.85f) podDir = -1f; if (podX < w * 0.15f) podDir = 1f
-        } else if (daylightVisitors) { // by the clock, like the other visitors (see GardenRouteLandscape.schedule)
-            val now = System.currentTimeMillis()
-            if (podAt == 0L) podAt = now + ((0.2f + rnd.nextFloat()) * 60_000f).toLong()
-            if (now >= podAt) { podFor = 50f + rnd.nextFloat() * 40f; podAt = now + ((2.5f + rnd.nextFloat() * 4f) * 60_000f).toLong() }
         }
+        schedule()
     }
 
     fun draw(c: Canvas, glow: (Canvas, Float, Float, Float, Int, Float) -> Unit) {
         drawShips(c)
         drawWhales(c)
         drawPod(c)
-        for (b in boats) if (!(night && b.kind == YACHT)) drawBoat(c, b)
+        for (b in boats) if (b.on && !(night && b.kind == YACHT)) drawBoat(c, b)
         if (jetskiFor > 0f) drawBoat(c, jetski)
         if (night) drawChokka(c, glow)
         p.shader = null
     }
 
     /** Something quick on the water: a breach, the dolphins or the jetski. */
-    val busy get() = jetskiFor > 0f || podFor > 0f || whales.any { it.cycle % 3 == 2 && it.t % cycleLen < 7f }
+    val busy get() = jetskiFor > 0f || podFor > 0f || whales.any { it.on && it.cycle % 3 == 2 && it.t % cycleLen < 7f }
 
-    fun launchDolphins() { podFor = 70f }
-    fun launchJetski() { jetskiFor = 80f }
-    fun launchBreach() { val wh = whales[1]; wh.t = (wh.t / cycleLen).toInt() * cycleLen + cycleLen - 0.05f; wh.cycle = 1 }
+    fun launchDolphins() { podFor = 70f; nextAt[7] = Long.MAX_VALUE }
+    fun launchJetski() { jetskiFor = 80f; nextAt[6] = Long.MAX_VALUE }
+    fun launchBreach() {
+        val wh = whales[1]
+        if (!wh.on) { wh.on = true; wh.x = w * 0.5f; wh.until = time + 120f; nextAt[1] = Long.MAX_VALUE }
+        wh.t = (wh.t / cycleLen).toInt() * cycleLen + cycleLen - 0.05f; wh.cycle = 1
+    }
 
     private companion object {
         const val CAT = 0; const val SKI = 1; const val YACHT = 2; const val JETSKI = 3
         const val WHALE_EX = 6.5f
-        // Wall-clock times of the next dolphin and jetski visits, shared by every rebuild of the scene.
-        var podAt = 0L
-        var jetskiAt = 0L
+        const val MAX_OUT = 2
+        // Lanes: 0-1 whales, 2 catamaran, 3 ski-boat, 4-5 yachts, 6 jetski, 7 dolphins, 8-9 ships.
+        /** Minutes between visits (after the last one leaves), and roughly when the first comes. */
+        val GAPS = arrayOf(1.5f to 4f, 8f to 16f, 5f to 10f, 4f to 8f, 5f to 9f, 9f to 16f, 7f to 14f, 5f to 10f, 3f to 7f, 6f to 12f)
+        val FIRST = floatArrayOf(0.1f, 2f, 0.6f, 1.2f, 0.3f, 2.5f, 1.5f, 0.8f, 0.4f, 3f)
+        /** Wall-clock times each lane is next due (Long.MAX_VALUE while it's out), kept across rebuilds. */
+        val nextAt = LongArray(10)
+        var quietUntil = 0L
     }
 }
