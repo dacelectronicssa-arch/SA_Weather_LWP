@@ -194,6 +194,37 @@ class AnimalArt {
     private var fx = 0f
     private var fy = 0f
 
+    /** 0..1: how strongly bodies get their volume shading (off for silhouettes). */
+    var shading = 1f
+
+    private val shadeBounds = android.graphics.RectF()
+    private val shadePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    /**
+     * Rounds out the body outline in [clip]: a soft light along the back, shade under the belly
+     * and a little at the rump and chest, so flat shapes read as solid.
+     */
+    private fun shadeBody(cv: Canvas) {
+        if (shading <= 0.02f) return
+        @Suppress("DEPRECATION") clip.computeBounds(shadeBounds, true)
+        val a = shading
+        cv.save()
+        cv.clipPath(clip)
+        shadePaint.shader = LinearGradient(0f, shadeBounds.top, 0f, shadeBounds.bottom,
+            intArrayOf(withAlpha(0xFFFFFFFF.toInt(), (46 * a).toInt()), 0x00FFFFFF, 0x00000000, withAlpha(0xFF000000.toInt(), (70 * a).toInt())),
+            floatArrayOf(0f, 0.32f, 0.55f, 1f), Shader.TileMode.CLAMP)
+        cv.drawRect(shadeBounds, shadePaint)
+        val wEdge = (shadeBounds.right - shadeBounds.left) * 0.14f
+        shadePaint.shader = LinearGradient(shadeBounds.left, 0f, shadeBounds.left + wEdge, 0f,
+            withAlpha(0xFF000000.toInt(), (40 * a).toInt()), 0x00000000, Shader.TileMode.CLAMP)
+        cv.drawRect(shadeBounds, shadePaint)
+        shadePaint.shader = LinearGradient(shadeBounds.right, 0f, shadeBounds.right - wEdge, 0f,
+            withAlpha(0xFF000000.toInt(), (28 * a).toInt()), 0x00000000, Shader.TileMode.CLAMP)
+        cv.drawRect(shadeBounds, shadePaint)
+        shadePaint.shader = null
+        cv.restore()
+    }
+
     /** Colour transform applied to every colour (silhouette at dusk, haze in the distance). */
     var tint: (Int) -> Int = { it }
 
@@ -418,6 +449,7 @@ class AnimalArt {
             }
             cv.restore()
         }
+        outline(clip, zebraBody); shadeBody(cv)
         stroke(blk, 0.035f)
         cv.drawLine(nbx - 0.1f, nby - 0.12f, nx - cos(pa) * 0.07f, ny - sin(pa) * 0.07f, p)
         head(cv, nx, ny, na, pose, HeadStyle(0.26f, 0.085f, white, blk, ear = true, stripe = blk), detail)
@@ -476,6 +508,7 @@ class AnimalArt {
         if (leap) cv.rotate(2.9f)
         outline(clip, springbokBody)
         fill(wh); cv.drawPath(clip, p)
+        shadeBody(cv)
         cv.save(); cv.clipPath(clip)
         fill(tan)
         path.reset(); path.moveTo(-0.5f, -0.9f); path.lineTo(0.45f, -0.9f); path.lineTo(0.45f, -0.6f)
@@ -573,6 +606,7 @@ class AnimalArt {
         cv.save(); cv.translate(0f, pose.bob)
         outline(clip, giraffeBody)
         fill(base); cv.drawPath(clip, p)
+        shadeBody(cv)
         val na = -1.05f + (1f - pose.head) * 0.35f + sin(pose.t * 0.7f) * 0.03f
         val bx = 0.28f; val by = -1.3f
         val nx = bx + cos(na) * 0.95f; val ny = by + sin(na) * 0.95f; val pa = na + PI.toFloat() / 2f

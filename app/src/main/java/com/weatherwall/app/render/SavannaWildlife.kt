@@ -29,7 +29,12 @@ class SavannaWildlife(private val dp: Float) {
 
     private class Animal(val sp: Species, val len: Float, val walk: Float, val run: Float, var x: Float, val d: Float) {
         val pose = Pose()
+        /** The way it wants to face (+1 right, -1 left). */
         var dir = 1f
+        /** The way it's actually facing, swinging smoothly towards [dir] (it narrows mid-turn). */
+        var facing = 1f
+        /** Current speed (fraction of W per second), eased towards the gait's speed. */
+        var speed = 0f
         var state = State.GRAZE
         var timer = 0f
         var tx = 0f
@@ -102,6 +107,7 @@ class SavannaWildlife(private val dp: Float) {
             animals += calf
         }
         for (a in animals) {
+            a.facing = a.dir
             a.timer = r() * 20f / SavannaDesign.ACTIVITY
             a.pose.head = if (rnd.nextBoolean()) 0f else 1f
             a.pose.t = r() * 100f
@@ -192,8 +198,8 @@ class SavannaWildlife(private val dp: Float) {
             }
         }
 
-        for (a in animals) updateAnimal(a, dt, lay)
-        for (l in lions) updateLion(l, dt, lay)
+        for (a in animals) { steer(a, dt); updateAnimal(a, dt, lay) }
+        for (l in lions) { steer(l, dt); updateLion(l, dt, lay) }
         updateVultures(dt, lay)
     }
 
@@ -217,15 +223,37 @@ class SavannaWildlife(private val dp: Float) {
 
     private fun pxSize(a: Animal) = a.len * w * (0.16f + 1.25f * a.d) * SavannaDesign.ANIMAL_SIZE * 2.2f
 
-    /** Moves towards tx at speed (fraction of W per second); returns true on arrival. */
+    /**
+     * Swings the animal round towards [Animal.dir]: a walk-paced turn takes about 1.2 s, a
+     * startled one about 0.6 s. Off-screen animals face the right way at once.
+     */
+    private fun steer(a: Animal, dt: Float) {
+        if (a.x < -0.08f || a.x > 1.08f) { a.facing = a.dir; return }
+        val rate = if (a.state == State.FLEE || a.state == State.ALERT) 3.4f else 1.7f
+        a.facing += (a.dir - a.facing).coerceIn(-rate * dt, rate * dt)
+    }
+
+    /** 0 while still facing the other way, 1 once it has turned (it sets off as the turn ends). */
+    private fun aligned(a: Animal) = smooth(((a.facing * a.dir - 0.55f) / 0.4f).coerceIn(0f, 1f))
+
+    /**
+     * Moves towards tx at speed (fraction of W per second); returns true on arrival. The animal
+     * first turns on the spot (stepping as it goes), then eases up to speed and slows over the
+     * last stretch instead of stopping dead.
+     */
     private fun move(a: Animal, speed: Float, dt: Float, act: Act): Boolean {
         val dx = a.tx - a.x
-        if (abs(dx) < 0.004f) return true
+        if (abs(dx) < 0.004f) { a.speed = 0f; return true }
         a.dir = sign(dx)
-        val step = min(abs(dx), speed * persp(a) * dt)
+        val align = aligned(a)
+        val target = speed * align * min(1f, abs(dx) / 0.04f + 0.3f)
+        a.speed += (target - a.speed) * min(1f, dt * (if (act == Act.RUN) 3f else 2f))
+        val step = min(abs(dx), a.speed * persp(a) * dt)
         a.x += a.dir * step
-        a.pose.act = act
-        a.pose.phase += step * w / (AnimalArt.cycleLength(a.sp, act) * pxSize(a))
+        // Mid-turn it walks round on the spot rather than galloping in place.
+        a.pose.act = if (align < 0.6f) Act.WALK else act
+        val pivot = dt * 0.9f * (1f - align)
+        a.pose.phase += step * w / (AnimalArt.cycleLength(a.sp, act) * pxSize(a)) + pivot
         return false
     }
 
@@ -286,7 +314,7 @@ class SavannaWildlife(private val dp: Float) {
                         val air = sin(PI.toFloat() * min(1f, u / 0.86f)).coerceAtLeast(0f).pow(0.9f)
                         p.act = Act.PRONK
                         p.bob = -0.48f * air
-                        a.x += a.dir * a.walk * 3f * persp(a) * dt
+                        a.x += a.dir * a.walk * 3f * persp(a) * dt * aligned(a)
                         if (p.t >= a.pronk * 0.78f) { a.pronk = 0f; p.bob = 0f }
                         AnimalArt.placeFeet(a.sp, p)
                         smoothHead(a, dt)
@@ -359,6 +387,7 @@ class SavannaWildlife(private val dp: Float) {
         var x = 0f
         var y = 0f
         var dir = 1f
+        var facing = 1f
         var flap = 0f
         var soar = false
         var ang = 0f
@@ -390,6 +419,7 @@ class SavannaWildlife(private val dp: Float) {
             v.x = if (fromLeft) -60f * pk else w + 60f * pk
             v.y = sky * 0.06f
             v.dir = if (fromLeft) 1f else -1f
+            v.facing = v.dir
             v.ang = r() * 6f
             v.cx = w * (0.35f + r() * 0.3f)
             v.cy = sky * (0.15f + r() * 0.1f)
@@ -414,6 +444,7 @@ class SavannaWildlife(private val dp: Float) {
         for ((i, v) in vultures.withIndex()) {
             v.t += dt
             if (v.t < 0f) continue
+            v.facing += (v.dir - v.facing).coerceIn(-2.6f * dt, 2.6f * dt)
             when (v.mode) {
                 VMode.IN -> {
                     val tx = v.cx + cos(v.ang) * v.rad
@@ -464,6 +495,16 @@ class SavannaWildlife(private val dp: Float) {
         tintHazeColor = haze
         tintHaze = if (d < 0.12f) (0.12f - d) / 0.12f * 0.55f else 0f
         tintSilh = silh * 0.75f
+        art.shading = 1f - silh
+    }
+
+    /**
+     * Horizontal scale for a facing value: narrows through a turn, but only to about the
+     * width an animal shows head-on or from behind (never paper thin).
+     */
+    private fun turnScale(facing: Float, dir: Float): Float {
+        val s = if (facing == 0f) dir else kotlin.math.sign(facing)
+        return s * (0.3f + 0.7f * abs(facing))
     }
 
     /** Draws the animals whose depth lies in [d0, d1), far to near. */
@@ -485,7 +526,7 @@ class SavannaWildlife(private val dp: Float) {
             setTint(a.d, silh, haze)
             c.save()
             c.translate(sx, sy)
-            c.scale(a.dir * s, s)
+            c.scale(turnScale(a.facing, a.dir) * s, s)
             art.draw(c, a.sp, a.pose, s > 40f * dp)
             c.restore()
         }
@@ -503,7 +544,7 @@ class SavannaWildlife(private val dp: Float) {
             val t = v.t
             c.save()
             c.translate(v.x, v.y + u * 0.3f)
-            c.scale(v.dir * u, u)
+            c.scale(turnScale(v.facing, v.dir) * u, u)
             val look = if (sin(t * 0.25f + i) > 0.6f) 0.15f else 0f
             art.vulture(c, perched = true, flap = 0f, soaring = false, bob = sin(t * 0.7f + i * 2f) * 0.06f, look = look)
             c.restore()
@@ -518,7 +559,7 @@ class SavannaWildlife(private val dp: Float) {
             setTint(1f, silh, 0)
             c.save()
             c.translate(v.x, v.y)
-            c.scale(v.dir * u, u)
+            c.scale(turnScale(v.facing, v.dir) * u, u)
             art.vulture(c, perched = false, flap = v.flap, soaring = v.soar, bob = 0f)
             c.restore()
         }
