@@ -15,11 +15,22 @@ object Prefs {
     const val OVERRIDE_FIREWORKS = "FIREWORKS"
     const val KEY_PREVIEW_HOLIDAY = "preview_holiday"
 
-    /** Top frame rate (30, 24 or 15): smoothness versus battery. */
+    /** Top frame rate (30, 24 or 15): smoothness versus battery; or [ULTRA_FPS]. */
     const val KEY_MAX_FPS = "max_fps"
     const val DEFAULT_MAX_FPS = 24
+    /** The "Ultra power saver" choice: a still picture, animated briefly after unlocking. */
+    const val ULTRA_FPS = 0
+    /** Switch to Ultra power saver while Android's Battery Saver is on (default on). */
+    const val KEY_ULTRA_ON_BATTERY_SAVER = "ultra_on_battery_saver"
 
     fun maxFps(ctx: Context): Int = get(ctx).getInt(KEY_MAX_FPS, DEFAULT_MAX_FPS)
+
+    /** The frame rate to animate at (Ultra's brief animations use the default). */
+    fun frameFps(ctx: Context): Int = maxFps(ctx).let { if (it == ULTRA_FPS) DEFAULT_MAX_FPS else it }
+
+    fun isUltraChoice(ctx: Context) = maxFps(ctx) == ULTRA_FPS
+
+    fun ultraOnBatterySaver(ctx: Context) = get(ctx).getBoolean(KEY_ULTRA_ON_BATTERY_SAVER, true)
 
     /** Which landscape to show: Scenes.CAPE_TOWN (default), SAVANNA, JHB or ALTRON. */
     const val KEY_SCENE = "scene"

@@ -49,6 +49,12 @@ The user asks for a new branch for each new scene.
   - A Smoothness setting chooses 30, 24 or 15 fps; the default is 24.
   - Drawing pauses while the wallpaper is hidden or the phone is locked.
   - Debug timing is logged under the `Perf` tag (`PerfMeter.kt`).
+  - **Ultra power saver** (Smoothness → "Ultra power saver", stored as `max_fps = 0`):
+    - The wallpaper is a still picture, redrawn once a minute by `WeatherRenderer.stillTick()`, which moves only the sun, moon and stars.
+    - It animates normally for 5 s (`BURST_MS`) after an unlock, a return to the home screen, or a weather or scene change.
+    - It also switches on automatically while Android's Battery Saver is on, unless that option is unticked in Settings (`ultra_on_battery_saver`).
+    - The demo and the fireworks preview always play smoothly.
+    - Debug: `--ei fps 0`. Test it with Battery Saver via `adb shell cmd power set-mode 1` (and `0` to turn it off).
 - **Demo mode:** `runDemo()` in `WeatherWallpaperService.kt` plays a 60-second tour suited to each scene.
 
 ## Code map (`app/src/main/java/com/weatherwall/app/`)

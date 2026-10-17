@@ -261,6 +261,18 @@ class WeatherRenderer(private val density: Float) {
         if (!plane.active) launchPlane()
     }
 
+    /**
+     * Ultra power saver's once-a-minute still frame: moves the sun, moon and stars to the
+     * current time and keeps tonight's fireworks plan and holiday up to date, while clouds,
+     * rain, visitors and fireworks hold still (and no new visitors set out).
+     */
+    fun stillTick() {
+        current?.syncSky()
+        previous?.syncSky()
+        planFireworks()
+        isHoliday = holidayToday() != null
+    }
+
     fun update(dt: Float) {
         current?.update(dt)
         previous?.update(dt)

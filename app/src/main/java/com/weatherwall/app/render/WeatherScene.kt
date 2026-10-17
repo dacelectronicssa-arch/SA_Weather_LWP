@@ -418,6 +418,9 @@ class WeatherScene(
         }
     }
 
+    /** For a still frame: brings the sun, moon, stars and twilight up to the clock without animating. */
+    fun syncSky() = updateSky()
+
     /** Recomputes where the stars, sun and moon are. Called about once a second. */
     private fun updateSky() {
         val now = SkyTime.now()

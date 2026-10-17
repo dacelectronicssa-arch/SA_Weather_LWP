@@ -16,6 +16,7 @@ import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -62,7 +63,7 @@ class SettingsActivity : Activity() {
             if (intent.getBooleanExtra("ship", false)) {
                 prefs.edit().putLong(Prefs.KEY_DEBUG_SHIP, System.currentTimeMillis()).apply()
             }
-            // `--ei fps 30|24|15` sets the top frame rate.
+            // `--ei fps 30|24|15` sets the top frame rate; `--ei fps 0` picks Ultra power saver.
             if (intent.hasExtra("fps")) prefs.edit().putInt(Prefs.KEY_MAX_FPS, intent.getIntExtra("fps", Prefs.DEFAULT_MAX_FPS)).apply()
             // `--es scene cape_town|savanna|jhb_city|altron_hq` switches the landscape.
             intent.getStringExtra("scene")?.let { prefs.edit().putString(Prefs.KEY_SCENE, it).apply() }
@@ -119,6 +120,11 @@ class SettingsActivity : Activity() {
 
         root.addView(header("Smoothness"))
         root.addView(buildFpsSpinner())
+        root.addView(CheckBox(this).apply {
+            text = "Use Ultra power saver when Battery Saver is on"
+            isChecked = Prefs.ultraOnBatterySaver(this@SettingsActivity)
+            setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean(Prefs.KEY_ULTRA_ON_BATTERY_SAVER, on).apply() }
+        })
 
         root.addView(header("Location"))
         root.addView(button("Use my location") {
@@ -173,8 +179,9 @@ class SettingsActivity : Activity() {
     }
 
     private fun buildFpsSpinner(): Spinner {
-        val labels = listOf("30 fps — smoothest", "24 fps — balanced", "15 fps — battery saver")
-        val values = listOf(30, 24, 15)
+        val labels = listOf("30 fps — smoothest", "24 fps — balanced", "15 fps — battery saver",
+            "Ultra power saver — still picture, moves briefly when you unlock")
+        val values = listOf(30, 24, 15, Prefs.ULTRA_FPS)
         return Spinner(this).apply {
             adapter = ArrayAdapter(this@SettingsActivity, android.R.layout.simple_spinner_dropdown_item, labels)
             setSelection(values.indexOf(Prefs.maxFps(this@SettingsActivity)).coerceAtLeast(0), false)

@@ -10,6 +10,7 @@ import android.content.pm.ApplicationInfo
 import android.graphics.Canvas
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
 import android.util.Log
@@ -38,16 +39,26 @@ class WeatherWallpaperService : WallpaperService() {
         // Battery: no animation while the phone is locked (screen off or on the lock screen).
         private var locked = false
         private val keyguard = getSystemService(KeyguardManager::class.java)
+        private val power = getSystemService(PowerManager::class.java)
         private val screenReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 when (intent.action) {
                     Intent.ACTION_SCREEN_OFF -> setLocked(true)
                     Intent.ACTION_USER_PRESENT -> setLocked(false)
                     Intent.ACTION_SCREEN_ON -> setLocked(keyguard?.isKeyguardLocked ?: false)
+                    PowerManager.ACTION_POWER_SAVE_MODE_CHANGED -> updateUltra()
                 }
             }
         }
         private var lastFrameAt = 0L
+
+        // Ultra power saver: a still picture redrawn once a minute, animated for a few seconds
+        // after unlocking, returning home, or a weather or scene change.
+        private var ultra = false
+        private var burstUntil = 0L
+        private var demoUntil = 0L
+        /** The demo and the fireworks preview always play smoothly. */
+        private val ultraSuspended get() = previewingFireworks || SystemClock.uptimeMillis() < demoUntil
         private var useHardwareCanvas = true
         private var lastAttemptAt = 0L
         private val fetching = AtomicBoolean(false)
@@ -67,12 +78,14 @@ class WeatherWallpaperService : WallpaperService() {
             prefs.registerOnSharedPreferenceChangeListener(this)
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_USER_PRESENT)
+                addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
             }
             if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             else registerReceiver(screenReceiver, filter)
             locked = keyguard?.isKeyguardLocked ?: false
             applyDebugTimeOffset()
-            renderer.maxFps = Prefs.maxFps(this@WeatherWallpaperService)
+            renderer.maxFps = Prefs.frameFps(this@WeatherWallpaperService)
+            updateUltra()
             applyFireworksPreview()
             applyWeather(animate = false)
         }
@@ -118,6 +131,7 @@ class WeatherWallpaperService : WallpaperService() {
             handler.removeCallbacks(weatherCheck)
             if (!visible) return
             lastFrameAt = SystemClock.uptimeMillis()
+            burstUntil = lastFrameAt + BURST_MS
             scheduleFrame(0)
             if (!locked) {
                 renderer.onVisible()
@@ -133,9 +147,14 @@ class WeatherWallpaperService : WallpaperService() {
                     if (prefs.getString(Prefs.KEY_OVERRIDE, Prefs.OVERRIDE_AUTO) == Prefs.OVERRIDE_AUTO) MilkyWay.heroView = false
                     applyFireworksPreview()
                     applyWeather(animate = true)
+                    startBurst()
                 }
                 Prefs.KEY_CITY -> maybeRefresh(force = true)
-                Prefs.KEY_MAX_FPS -> renderer.maxFps = Prefs.maxFps(this@WeatherWallpaperService)
+                Prefs.KEY_MAX_FPS -> {
+                    renderer.maxFps = Prefs.frameFps(this@WeatherWallpaperService)
+                    updateUltra()
+                }
+                Prefs.KEY_ULTRA_ON_BATTERY_SAVER -> updateUltra()
                 Prefs.KEY_DEBUG_PLANE -> renderer.launchPlaneNow()
                 Prefs.KEY_DEBUG_SHIP -> renderer.launchShipNow()
                 Prefs.KEY_DEBUG_BIRDS -> renderer.launchBirdsNow()
@@ -159,8 +178,28 @@ class WeatherWallpaperService : WallpaperService() {
                 Prefs.KEY_DEBUG_TIME_OFFSET -> {
                     applyDebugTimeOffset()
                     applyWeather(animate = true)
+                    startBurst()
                 }
             }
+        }
+
+        /** Ultra power saver is on when chosen in Settings, or (if allowed) while Battery Saver is on. */
+        private fun updateUltra() {
+            val was = ultra
+            ultra = Prefs.isUltraChoice(this@WeatherWallpaperService) ||
+                (Prefs.ultraOnBatterySaver(this@WeatherWallpaperService) && power?.isPowerSaveMode == true)
+            if (ultra != was) {
+                Log.i(TAG, if (ultra) "Ultra power saver on" else "Ultra power saver off")
+                startBurst()
+            }
+        }
+
+        /** A few seconds of normal animation (Ultra's still frames resume afterwards). */
+        private fun startBurst() {
+            val now = SystemClock.uptimeMillis()
+            if (now >= burstUntil) lastFrameAt = now // coming out of a still: don't count the gap
+            burstUntil = now + BURST_MS
+            if (visible && !locked) scheduleFrame(0)
         }
 
         /**
@@ -171,6 +210,8 @@ class WeatherWallpaperService : WallpaperService() {
          */
         private fun runDemo() {
             handler.removeCallbacksAndMessages(DEMO)
+            demoUntil = SystemClock.uptimeMillis() + 65_000L
+            startBurst()
             val now = System.currentTimeMillis()
             val afternoon = java.util.Calendar.getInstance().apply {
                 set(java.util.Calendar.HOUR_OF_DAY, 14); set(java.util.Calendar.MINUTE, 0)
@@ -314,7 +355,8 @@ class WeatherWallpaperService : WallpaperService() {
             val dt = ((now - lastFrameAt) / 1000f).coerceIn(0f, 0.15f)
             lastFrameAt = now
             perf?.begin()
-            renderer.update(dt)
+            val still = ultra && !ultraSuspended && now >= burstUntil
+            if (still) renderer.stillTick() else renderer.update(dt)
             perf?.updated()
 
             val holder = surfaceHolder
@@ -331,10 +373,16 @@ class WeatherWallpaperService : WallpaperService() {
                     perf?.posted()
                 }
             }
+            if (!visible || locked) return
+            if (still) {
+                // Ultra power saver: the next still frame on the next minute.
+                scheduleFrame(60_000L - System.currentTimeMillis() % 60_000L + 50L)
+                return
+            }
             // Battery: draw only as often as what's on screen needs, allowing for this frame's cost.
             val interval = 1000L / renderer.desiredFps()
             val spent = SystemClock.uptimeMillis() - now
-            if (visible && !locked) scheduleFrame((interval - spent).coerceAtLeast(0L))
+            scheduleFrame((interval - spent).coerceAtLeast(0L))
         }
 
         private fun lockCanvas(holder: SurfaceHolder): Canvas? {
@@ -354,6 +402,8 @@ class WeatherWallpaperService : WallpaperService() {
         const val TAG = "WeatherWallpaper"
         val DEMO = Any() // token for the demo's scheduled steps
         const val CHECK_INTERVAL_MS = 60_000L
+        /** How long Ultra power saver animates after unlocking or a change. */
+        const val BURST_MS = 5_000L
         const val REFRESH_INTERVAL_MS = 30 * 60_000L
         const val RETRY_INTERVAL_MS = 5 * 60_000L
     }
