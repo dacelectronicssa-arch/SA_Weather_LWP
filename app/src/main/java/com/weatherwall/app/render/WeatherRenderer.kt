@@ -236,10 +236,10 @@ class WeatherRenderer(private val density: Float) {
     private fun holidayToday(cal: java.util.Calendar = java.util.Calendar.getInstance().apply { timeInMillis = SkyTime.now() }) =
         forcedHoliday ?: Holidays.forEvening(cal)
 
-    /** The banner plane, kept clear of the Jhb skyline. */
+    /** The banner plane, kept clear of the Jhb skyline and the Altron head office's roof. */
     private fun launchPlane() {
         setBannerMessage()
-        if (config?.scene == Scenes.JHB) plane.launch(haze(), top = 0.24f, band = 0.1f) else plane.launch(haze())
+        if (cityTraffic()) plane.launch(haze(), top = 0.24f, band = 0.1f) else plane.launch(haze())
     }
 
     /** Debug: the Airlink stadium flypast right away. */
