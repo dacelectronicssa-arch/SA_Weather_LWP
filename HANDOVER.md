@@ -80,7 +80,8 @@ The user asks for a new branch for each new scene.
   - **Under the deck:** Skywalk walkers. Jumpers (`GardenJumpers.kt`) leave from a platform just off the arch's near side.
     - **Bungy:** a spring-and-damper cord, sized so the first stretch stays on screen. A few bounces, a swing, then the winch back up (about 50 s).
     - **BASE:** freefall, the canopy snapping open, then a glide down the gorge in S-turns to a sand fan in the inlet.
-  - **Scheduling:** train, bungy, BASE, dolphins and jetski are timed by the **wall clock**, kept across rebuilds (companion `next…At`). Drawing only runs while the wallpaper is visible, which is why the old frame timers never came due on the phone.
+  - **Jumps:** one every 1–2 minutes in daylight (`nextJumpAt`), the first within 10–30 s. Bungy in anything short of rain; about a third are BASE jumps when it's dry, clear and under 35 km/h of wind. Logged as `Visitor: BUNGY jump` / `BASE jump` / `jump skipped` (`JumpScheduleTest`).
+  - **Scheduling:** train, jumps, dolphins and jetski are timed by the **wall clock**, kept across rebuilds (companion `next…At`). Drawing only runs while the wallpaper is visible, which is why the old frame timers never came due on the phone.
   - **Visitors from the renderer:** the plane flies over without its banner (with one on holidays), and the geese skein is shared with the Savanna.
   - **Choo Tjoe:** the Outeniqua Choo Tjoe steams across from the right every 4–8 minutes (`GardenDesign`), drawn 1.7× life size as solid vehicles (side and end faces, a cylindrical boiler, smokebox front, round chimney and dome; `drawVehicles`), with chuffing smoke, cylinder steam and a whistle plume.
   - **Frame rate:** `motion` is 2 (FAST) only while a quick visitor is on screen; otherwise the calm rate.

@@ -583,17 +583,20 @@ class GardenRouteLandscape(
     private fun schedule() {
         val now = GardenClock.now()
         if (nextTrainAt == 0L) nextTrainAt = now + minutes(0.3f, 1f)
-        if (nextBungyAt == 0L) nextBungyAt = now + minutes(0.4f, 1.2f)
-        if (nextBaseAt == 0L) nextBaseAt = now + minutes(2.5f, 5f)
+        if (nextJumpAt == 0L) nextJumpAt = now + (10_000L + (rnd.nextFloat() * 20_000f).toLong())
         if (now >= nextTrainAt && trainX.isNaN()) {
             launchTrain(); nextTrainAt = now + minutes(GardenDesign.TRAIN_EVERY_MIN, GardenDesign.TRAIN_EVERY_MAX)
         }
-        val jumpWeather = daytime && !grey && cfg.wind < 0.7f
-        if (now >= nextBungyAt && !jumpers.bungyActive && !jumpers.baseActive) {
-            if (jumpWeather) { jumpers.launchBungy(); nextBungyAt = now + minutes(2f, 4f) } else nextBungyAt = now + 60_000L
-        }
-        if (now >= nextBaseAt && !jumpers.bungyActive && !jumpers.baseActive) {
-            if (jumpWeather && cfg.wind < 0.45f) { jumpers.launchBase(); nextBaseAt = now + minutes(6f, 12f) } else nextBaseAt = now + 90_000L
+        // A jump every minute or two in daylight: bungy in anything short of rain, and about a
+        // third of the time a BASE jump instead when it's clear enough and not too windy.
+        if (now >= nextJumpAt && !jumpers.bungyActive && !jumpers.baseActive) {
+            val wet = cfg.rain > 0 || cfg.lightning
+            val baseOk = !wet && !cfg.fog && cfg.wind < 0.7f
+            when {
+                !daytime || wet -> { nextJumpAt = now + 60_000L; android.util.Log.d("WeatherWallpaper", "Visitor: jump skipped (${if (wet) "rain" else "night"})") }
+                baseOk && rnd.nextFloat() < 0.35f -> { jumpers.launchBase(); nextJumpAt = now + minutes(1f, 2f); android.util.Log.d("WeatherWallpaper", "Visitor: BASE jump") }
+                else -> { jumpers.launchBungy(); nextJumpAt = now + minutes(1f, 2f); android.util.Log.d("WeatherWallpaper", "Visitor: BUNGY jump") }
+            }
         }
     }
     fun launchDolphins() = bay.launchDolphins()
@@ -688,7 +691,7 @@ class GardenRouteLandscape(
                     val xc = xb - 5.5f
                     val yc = r - 2.55f * ts; val rad = 1.05f * ts
                     // Cab: its front plate above the boiler, roof overhang, side with window.
-                    endFace(c, xc, yc, r - 4.2f * ts, wd, 0.25f * ts, scale(blk, 0.8f))
+                    endFace(c, xc, r - 1.0f * ts, r - 4.2f * ts, wd, 0.25f * ts, scale(blk, 0.8f)) // full height, so no sky shows past the boiler
                     if (night) { proj(xc, r - 3.6f * ts, -0.75f); val fx0 = ox; val fy0 = oy; fill(0xFFFFA050.toInt()); c.drawCircle(fx0, fy0, 0.3f * ts * foc / oz, p) }
                     else { proj(xc, r - 3.6f * ts, -0.75f); fill(0xFF3A4452.toInt()); c.drawCircle(ox, oy, 0.3f * ts * foc / oz, p) }
                     sideFace(c, xc, xb, r - 1.0f * ts, r - 4.2f * ts, d, blk, 0.22f, 0.4f)
@@ -698,7 +701,7 @@ class GardenRouteLandscape(
                     cylinderX(c, xa + 0.4f, xc, yc, rad, blk)
                     for (bx in floatArrayOf(xa + 1.9f, xa + 5.2f, xa + 9.0f, xa + 12.4f)) {
                         p.style = Paint.Style.STROKE; p.strokeWidth = max(1f, 0.08f * ts * foc / oz); p.color = if (night) 0xFF30343C.toInt() else 0xFF7A808A.toInt()
-                        proj(bx, yc - rad, 0f); val x0 = ox; val y0 = oy; proj(bx, yc + rad * 0.7f, d); c.drawLine(x0, y0, ox, oy, p)
+                        proj(bx, yc - rad, 0f); val x0 = ox; val y0 = oy; proj(bx, yc + rad * 0.85f, 0f); c.drawLine(x0, y0, ox, oy, p) // an upright ring
                         p.style = Paint.Style.FILL
                     }
                     p.style = Paint.Style.STROKE; p.strokeWidth = max(1f, 0.06f * ts * foc / oz); p.color = if (night) 0xFF40444C.toInt() else 0xFFB8BCC4.toInt()
@@ -788,8 +791,7 @@ class GardenRouteLandscape(
         const val LOCO = 0; const val TENDER = 1; const val COACH = 2
         // Wall-clock times of the next visits (0 = not yet planned), shared by every rebuild of the scene.
         var nextTrainAt = 0L
-        var nextBungyAt = 0L
-        var nextBaseAt = 0L
+        var nextJumpAt = 0L
 
         val DAY = Pal(0xFF1D4F9A.toInt(), 0xFF2A7BBD.toInt(), 0xFF3CC4C8.toInt(), 0xFF9FD0E6.toInt(), 0xFFF4FBFF.toInt(), 0xFF5C8F2C.toInt(), 0xFFA3C84C.toInt(), 0xFFB8643A.toInt(), 0xFFA19C90.toInt(), 0xFFD8D3C8.toInt(), 0xFF8F8A82.toInt(), 0xFFC7DDE6.toInt())
         val GOLD = Pal(0xFF2B3D6B.toInt(), 0xFF4C6189.toInt(), 0xFF6FA6A2.toInt(), 0xFFFFCF8A.toInt(), 0xFFFFE9CF.toInt(), 0xFF6B6E2A.toInt(), 0xFFC0A94A.toInt(), 0xFFC9713E.toInt(), 0xFFB8977A.toInt(), 0xFFF0C79A.toInt(), 0xFF7D6A5C.toInt(), 0xFFE9B88F.toInt())

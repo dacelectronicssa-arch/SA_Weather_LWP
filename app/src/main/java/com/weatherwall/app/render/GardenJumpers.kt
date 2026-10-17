@@ -49,7 +49,7 @@ class GardenJumpers(
     private val jx = 1.5f
     private val jy = -6.8f
     private val jd = -7.2f
-    private val ex = 1.6f // people a little larger than life
+    private val ex = 2.1f // people larger than life, so they're easy to spot
 
     // ---- Bungy -----------------------------------------------------------------------------------
 
