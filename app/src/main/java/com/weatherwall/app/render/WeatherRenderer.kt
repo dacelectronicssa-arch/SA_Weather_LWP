@@ -433,7 +433,7 @@ class WeatherRenderer(private val density: Float) {
         android.util.Log.d("WeatherWallpaper", "Visitor: $lane")
     }
 
-    private fun haze() = config?.let { if (it.fog || it.clouds > 6) 0.75f else 1f } ?: 1f
+    private fun haze() = config?.let { if (it.fog || it.overcast) 0.75f else 1f } ?: 1f
 
     private fun between(minSeconds: Int, maxSeconds: Int) =
         minSeconds * 1000L + rnd.nextLong((maxSeconds - minSeconds) * 1000L + 1)

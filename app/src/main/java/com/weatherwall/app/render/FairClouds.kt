@@ -46,7 +46,7 @@ class FairClouds(
     private val w: Float,
     tableTopY: Float,
 ) {
-    private class Palette(val top: Int, val mid: Int, val under: Int, val wisp: Int, val decks: Int, val wisps: Int)
+    private class Palette(val top: Int, val mid: Int, val under: Int, val wisp: Int, val decks: Int, val wisps: Int, val overcast: Boolean = false)
 
     private class Item(val bmp: Bitmap, val ox: Float, val oy: Float, var x: Float, val y: Float, val speed: Float, val alpha: Int) {
         val w = bmp.width / SCALE
@@ -67,12 +67,13 @@ class FairClouds(
             WeatherCondition.PARTLY_CLOUDY -> Palette(0xFFFFFFFF.c, 0xFFEEF2F6.c, 0xFFAEB9C6.c, 0xFFFFFFFF.c, 4, 4)
             WeatherCondition.FOG -> Palette(0xFFE4E8EC.c, 0xFFC9D0D7.c, 0xFF8A95A1.c, 0xFFEEF1F4.c, 3, 0)
             WeatherCondition.SNOW -> Palette(0xFFE4E8EC.c, 0xFFC9D0D7.c, 0xFF8A95A1.c, 0xFFEEF1F4.c, 6, 0)
-            WeatherCondition.CLOUDY -> Palette(0xFFE4E8EC.c, 0xFFC9D0D7.c, 0xFF8A95A1.c, 0xFFEEF1F4.c, 9, 3)
+            WeatherCondition.CLOUDY -> Palette(0xFFFAFBFC.c, 0xFFE2E7EC.c, 0xFF9CA8B5.c, 0xFFFFFFFF.c, 7, 5)
+            WeatherCondition.OVERCAST -> Palette(0xFFE4E8EC.c, 0xFFC9D0D7.c, 0xFF8A95A1.c, 0xFFEEF1F4.c, 9, 3, overcast = true)
             // Only used where the storm ceiling isn't available.
-            else -> Palette(0xFF9AA4AE.c, 0xFF7C8691.c, 0xFF4E5762.c, 0xFFA9B2BB.c, 9, 0)
+            else -> Palette(0xFF9AA4AE.c, 0xFF7C8691.c, 0xFF4E5762.c, 0xFFA9B2BB.c, 9, 0, overcast = true)
         }
         val pal = if (night) {
-            Palette(0xFF6A7590.c, 0xFF4A5468.c, 0xFF262D3C.c, 0xFF7C88A6.c, base.decks, base.wisps)
+            Palette(0xFF6A7590.c, 0xFF4A5468.c, 0xFF262D3C.c, 0xFF7C88A6.c, base.decks, base.wisps, base.overcast)
         } else base
         build(pal)
     }
@@ -80,7 +81,7 @@ class FairClouds(
     private fun build(pal: Palette) {
         val d = CloudDesign
         val r = Mulberry32(d.SEED)
-        val overcast = pal.decks > 6
+        val overcast = pal.overcast
         val nd = (pal.decks * d.DECK_AMOUNT).roundToInt()
         for (i in 0 until nd) {
             val depth = 0.6f + r.next() * 0.6f

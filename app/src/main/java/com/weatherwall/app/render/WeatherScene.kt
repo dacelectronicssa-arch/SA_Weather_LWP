@@ -113,7 +113,7 @@ class WeatherScene(
     private var twilight = 0f
     private val twilightCloudDim = when {
         cfg.rain > 0 || cfg.snow > 0 -> 0f
-        cfg.clouds > 6 || cfg.fog -> 0.35f
+        cfg.overcast || cfg.fog -> 0.35f
         else -> 1f
     }
     private val twilightSkyPaint = Paint().apply {
@@ -180,7 +180,11 @@ class WeatherScene(
         val t = ((x - a) / (b - a)).coerceIn(0f, 1f)
         return t * t * (3f - 2f * t)
     }
-    private val milkyWayCloudDim = if (cfg.clouds > 1) 0.55f else 1f
+    private val milkyWayCloudDim = when {
+        cfg.clouds > 4 -> 0.4f   // cloudy
+        cfg.clouds > 1 -> 0.6f   // partly cloudy
+        else -> 1f
+    }
 
     // ---- The land: Cape Town, the Savanna or Jhb City ------------------------------------
     private val landscape: Landscape =
@@ -443,7 +447,7 @@ class WeatherScene(
         // Light on the mountain's rock faces: the sun by day (soft under cloud), faint moonlight at night.
         if (sunAlt > 0) {
             val dir = ((sunX - wf / 2f) / (wf * 0.4f)).coerceIn(-1f, 1f)
-            val overcast = if (cfg.clouds > 6 || cfg.fog) 0.35f else 1f
+            val overcast = if (cfg.overcast || cfg.fog) 0.35f else 1f
             landscape.setLight(dir, (0.45f + 0.55f * kotlin.math.abs(dir)) * overcast)
         } else {
             val moonUp = cfg.moon && moonAlt > 0

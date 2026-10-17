@@ -31,12 +31,15 @@ class WeatherRepository(context: Context) {
         val url = URL(
             "https://api.open-meteo.com/v1/forecast" +
                 "?latitude=${place.lat}&longitude=${place.lon}" +
-                "&current=weather_code,is_day,temperature_2m,wind_speed_10m" +
+                "&current=weather_code,cloud_cover,is_day,temperature_2m,wind_speed_10m" +
                 "&timezone=auto"
         )
         val current = JSONObject(httpGet(url)).getJSONObject("current")
         val state = WeatherState(
-            condition = WeatherCondition.fromWmoCode(current.getInt("weather_code")),
+            condition = WeatherCondition.fromWmoCode(
+                current.getInt("weather_code"),
+                if (current.isNull("cloud_cover")) null else current.optInt("cloud_cover"),
+            ),
             isDay = current.optInt("is_day", 1) == 1,
             temperatureC = current.optDouble("temperature_2m", Double.NaN),
             windKmh = current.optDouble("wind_speed_10m", 0.0),

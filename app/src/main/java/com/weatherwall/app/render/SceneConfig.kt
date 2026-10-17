@@ -36,6 +36,9 @@ data class SceneConfig(
     /** Which landscape: [Scenes.CAPE_TOWN] or [Scenes.SAVANNA]. */
     val scene: String = Scenes.CAPE_TOWN,
 ) {
+    /** A grey ceiling over the whole sky (overcast, drizzle, rain, storms): soft light, no glow. */
+    val overcast: Boolean get() = clouds > 6
+
     companion object {
         fun forWeather(
             w: WeatherState,
@@ -63,6 +66,15 @@ data class SceneConfig(
                         wind = wind)
                 }
                 WeatherCondition.CLOUDY -> {
+                    // Busier than partly cloudy, but the sky is still blue between the clouds
+                    // and the sun, moon and stars still show through the gaps.
+                    val (t, b) = sky(0xFF5A82B4, 0xFFB9CCDC, 0xFF121A2E, 0xFF333E58)
+                    SceneConfig(t, b, sun = day, moon = !day, stars = if (day) 0 else 70,
+                        clouds = 6, cloudColor = if (day) 0xFFF2F4F7.toInt() else 0xFF4E586E.toInt(),
+                        wind = wind)
+                }
+                WeatherCondition.OVERCAST -> {
+                    // A full grey ceiling: the only dry sky that hides the sun, moon and stars.
                     val (t, b) = sky(0xFF6F7F8F, 0xFFB0BAC4, 0xFF181D27, 0xFF363E4C)
                     SceneConfig(t, b, clouds = 10,
                         cloudColor = if (day) 0xFFD9DEE4.toInt() else 0xFF3A4252.toInt(), wind = wind)
