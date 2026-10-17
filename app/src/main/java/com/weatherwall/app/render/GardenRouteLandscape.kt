@@ -503,13 +503,39 @@ class GardenRouteLandscape(
             c.drawPath(s.path, p)
         }
         p.pathEffect = null
-        for (j in 0 until 5) { // swells across the bay, funnelling up the inlet
-            val u = (time * 0.03f + j / 5f) % 1f; val y = hz + 30f * k + u * (h * 0.74f - hz - 30f * k)
-            val into = max(0f, (y - h * 0.52f) / (h * 0.22f))
-            val ww = (90f + u * 260f) * k * (1f - into * 0.75f); val cx = w * (0.5f + sin(j * 2.3f) * 0.05f * (1f - into))
-            p.color = withAlpha(pal.foam, (sin(u * PI.toFloat()) * 0.3f * dim * 255).toInt()); p.strokeWidth = (1f + u * 3f) * k
-            path.reset(); path.moveTo(cx - ww, y + 5f * k); path.quadTo(cx, y - 5f * k, cx + ww, y + 5f * k); c.drawPath(path, p)
+        // Swells rolling in across the bay and funnelling up the inlet. Each crest is a broken,
+        // wobbling line: the middle runs ahead and the ends lag (bending towards the shore, more as
+        // it enters the gorge), with patchy whitecaps fading out along it and a faint trough behind.
+        p.strokeCap = Paint.Cap.BUTT // round caps would overlap at every joint and bead the crest
+        val segs = 26
+        for (j in 0 until 6) {
+            val u = (time * 0.028f + j / 6f + 0.04f * sin(j * 2.7f)) % 1f
+            val y = hz + 30f * k + u * (h * 0.74f - hz - 30f * k)
+            val into = max(0f, (y - h * 0.52f) / (h * 0.22f)).coerceAtMost(1f)
+            val ww = (110f + u * 300f) * k * (1f - into * 0.72f)
+            val cx = w * (0.5f + sin(j * 2.3f) * 0.05f * (1f - into))
+            val bend = (6f + u * 14f + into * 34f) * k
+            val life = sin(u * PI.toFloat())
+            var px = 0f; var py = 0f
+            for (i in 0..segs) {
+                val t = i / segs.toFloat() * 2f - 1f
+                val x = cx + t * ww
+                val yy = y - t * t * bend + (sin(t * 4.6f + j * 1.7f + time * 0.35f) * 3.2f + sin(t * 11f + j * 3.1f - time * 0.5f) * 1.4f) * k * (0.6f + u)
+                if (i > 0) {
+                    val patch = 0.55f + 0.45f * sin(t * 7.3f + j * 2.9f + time * 0.6f)
+                    val taper = (1f - t * t).coerceAtLeast(0f)
+                    if (patch > 0.32f) {
+                        p.color = withAlpha(pal.seaDeep, (life * taper * 0.16f * dim * 255).toInt()); p.strokeWidth = (2f + u * 4f) * k
+                        c.drawLine(px, py - (3f + u * 4f) * k, x, yy - (3f + u * 4f) * k, p) // the trough behind the crest
+                        p.color = withAlpha(pal.foam, (life * taper * patch * (0.34f + into * 0.25f) * dim * 255).toInt())
+                        p.strokeWidth = (0.8f + u * 2.6f) * k * (0.5f + 0.5f * patch)
+                        c.drawLine(px, py, x, yy, p)
+                    }
+                }
+                px = x; py = yy
+            }
         }
+        p.strokeCap = Paint.Cap.ROUND
         p.style = Paint.Style.FILL
     }
 
