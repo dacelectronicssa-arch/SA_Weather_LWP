@@ -258,7 +258,6 @@ class GardenBay(
     private var podDir = 1f
     private var podT = 0f
     var podFor = 0f
-    private var podIn = 10f + rnd.nextFloat() * 60f
 
     private fun drawDolphin(c: Canvas) {
         shape(dolphinBody, dPath)
@@ -302,7 +301,6 @@ class GardenBay(
     )
     private val jetski = Boat(JETSKI, w * 0.5f, hz + 225f * k, 1f, 14f)
     var jetskiFor = 0f
-    private var jetskiIn = 30f + rnd.nextFloat() * 120f
     private val hull = Path()
 
     private fun hullPath(len: Float, fb: Float, bowRake: Float): Path {
@@ -480,12 +478,20 @@ class GardenBay(
             jetskiFor -= dt; jetski.t += dt
             jetski.x += jetski.dir * jetski.v * ppm(jetski.y, 6f) * 0.25f * dt
             if (jetski.x > w * 0.8f) jetski.dir = -1f; if (jetski.x < w * 0.25f) jetski.dir = 1f
-        } else if (daylightVisitors) { jetskiIn -= dt; if (jetskiIn <= 0f) { jetskiFor = 60f + rnd.nextFloat() * 40f; jetskiIn = 240f + rnd.nextFloat() * 360f } }
+        } else if (daylightVisitors) {
+            val now = System.currentTimeMillis()
+            if (jetskiAt == 0L) jetskiAt = now + ((0.5f + rnd.nextFloat() * 2f) * 60_000f).toLong()
+            if (now >= jetskiAt) { jetskiFor = 60f + rnd.nextFloat() * 40f; jetskiAt = now + ((4f + rnd.nextFloat() * 6f) * 60_000f).toLong() }
+        }
         if (podFor > 0f) {
             podFor -= dt; podT += dt
             podX += podDir * 4f * ppm(podY, 8f) * dt
             if (podX > w * 0.85f) podDir = -1f; if (podX < w * 0.15f) podDir = 1f
-        } else if (daylightVisitors) { podIn -= dt; if (podIn <= 0f) { podFor = 50f + rnd.nextFloat() * 40f; podIn = 150f + rnd.nextFloat() * 240f } }
+        } else if (daylightVisitors) { // by the clock, like the other visitors (see GardenRouteLandscape.schedule)
+            val now = System.currentTimeMillis()
+            if (podAt == 0L) podAt = now + ((0.2f + rnd.nextFloat()) * 60_000f).toLong()
+            if (now >= podAt) { podFor = 50f + rnd.nextFloat() * 40f; podAt = now + ((2.5f + rnd.nextFloat() * 4f) * 60_000f).toLong() }
+        }
     }
 
     fun draw(c: Canvas, glow: (Canvas, Float, Float, Float, Int, Float) -> Unit) {
@@ -508,5 +514,8 @@ class GardenBay(
     private companion object {
         const val CAT = 0; const val SKI = 1; const val YACHT = 2; const val JETSKI = 3
         const val WHALE_EX = 6.5f
+        // Wall-clock times of the next dolphin and jetski visits, shared by every rebuild of the scene.
+        var podAt = 0L
+        var jetskiAt = 0L
     }
 }

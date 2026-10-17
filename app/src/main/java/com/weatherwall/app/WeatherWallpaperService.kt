@@ -261,8 +261,8 @@ class WeatherWallpaperService : WallpaperService() {
                 38_000L to weather("THUNDERSTORM:day", afternoon),
                 46_000L to night,
             ) else if (scene == Scenes.GARDEN) listOf<Pair<Long, () -> Unit>>(
-                // Garden Route: the Choo Tjoe steams across, a whale breaches, a bungy jump,
-                // dolphins and the jetski in the bay, the weather rolling in off the sea, then night.
+                // Garden Route: the Choo Tjoe steams across, a whale breaches, a bungy jump and a
+                // BASE jump, dolphins and the jetski in the bay, the weather rolling in, then night.
                 0L to weather("CLEAR:day", afternoon),
                 1_000L to { renderer.launchGardenNow("train") },
                 4_000L to { renderer.launchGardenNow("breach") },
@@ -271,9 +271,10 @@ class WeatherWallpaperService : WallpaperService() {
                 13_000L to { renderer.launchGardenNow("dolphins") },
                 15_000L to { renderer.launchGardenNow("jetski") },
                 18_000L to weather("CLOUDY:day", afternoon),
-                22_000L to weather("FOG:day", afternoon),
-                28_000L to weather("RAIN:day", afternoon),
-                36_000L to weather("THUNDERSTORM:day", afternoon),
+                20_000L to { renderer.launchGardenNow("base") },
+                24_000L to weather("FOG:day", afternoon),
+                30_000L to weather("RAIN:day", afternoon),
+                37_000L to weather("THUNDERSTORM:day", afternoon),
                 44_000L to night,
                 46_000L to { renderer.launchGardenNow("train") },
             ) else if (scene == Scenes.JHB) listOf<Pair<Long, () -> Unit>>(

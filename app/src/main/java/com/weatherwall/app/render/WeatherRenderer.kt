@@ -182,7 +182,10 @@ class WeatherRenderer(private val density: Float) {
                 if (geese.active) return FAST
                 when (wildlife.motion) { 2 -> return FAST; 1 -> slow = true }
             }
-            Scenes.GARDEN -> if (current?.gardenMotion == 2) return FAST
+            Scenes.GARDEN -> {
+                if (current?.gardenMotion == 2 || geese.active) return FAST
+                if (plane.active) slow = true
+            }
             Scenes.JHB, Scenes.ALTRON -> {
                 if (pigeons.flying) return FAST
                 if (jets.active) slow = true
@@ -240,7 +243,9 @@ class WeatherRenderer(private val density: Float) {
     /** The banner plane, kept clear of the Jhb skyline and the Altron head office's roof. */
     private fun launchPlane() {
         setBannerMessage()
-        if (cityTraffic()) plane.launch(haze(), top = 0.24f, band = 0.1f) else plane.launch(haze())
+        // Over the Garden Route it's just the plane, unless there's a holiday greeting to tow.
+        val tow = config?.scene != Scenes.GARDEN || holidayToday() != null
+        if (cityTraffic()) plane.launch(haze(), top = 0.24f, band = 0.1f) else plane.launch(haze(), tow = tow)
     }
 
     /** Debug: the Airlink stadium flypast right away. */
@@ -289,8 +294,10 @@ class WeatherRenderer(private val density: Float) {
         val day = config?.night == false
         val savanna = config?.scene == Scenes.SAVANNA
         // The sea and its boats belong to Cape Town; the banner plane too, except on holidays.
+        // The Garden Route has its own bay, and the plane (without a banner) flies there every day.
         val inland = config?.scene.let { it != null && it != Scenes.CAPE_TOWN }
-        val planeHere = !inland || isHoliday
+        val garden = config?.scene == Scenes.GARDEN
+        val planeHere = !inland || isHoliday || garden
         if (savanna) wildlife.update(dt)
         if (!inland && now >= nextFlypastAt) {
             if (planeMayFly() && !plane.active) {
@@ -304,9 +311,9 @@ class WeatherRenderer(private val density: Float) {
         fireworksCheckIn -= dt
         if (fireworksCheckIn <= 0f) { fireworksCheckIn = 1f; planFireworks(); isHoliday = holidayToday() != null }
         fireworks.update(dt)
-        // Egyptian geese over the savanna, by day, every couple of minutes.
+        // Egyptian geese over the savanna and the Garden Route, by day, every couple of minutes.
         if (geeseWereActive && !geese.active) nextGeeseAt = now + between(90, 240)
-        if (savanna && !geese.active && now >= nextGeeseAt) {
+        if ((savanna || garden) && !geese.active && now >= nextGeeseAt) {
             if (day) { geese.launch(); android.util.Log.d("WeatherWallpaper", "Visitor: GEESE") } else nextGeeseAt = now + between(60, 120)
         }
         geeseWereActive = geese.active
@@ -390,7 +397,7 @@ class WeatherRenderer(private val density: Float) {
         if (config?.scene == Scenes.CAPE_TOWN) flypast.draw(canvas)
         plane.draw(canvas)
         birds.draw(canvas)
-        if (config?.scene == Scenes.SAVANNA) geese.draw(canvas)
+        if (config?.scene == Scenes.SAVANNA || config?.scene == Scenes.GARDEN) geese.draw(canvas)
         if (cityTraffic()) { pigeons.draw(canvas); jets.draw(canvas) }
     }
 

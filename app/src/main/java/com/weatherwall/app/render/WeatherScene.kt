@@ -297,6 +297,7 @@ class WeatherScene(
         when (what) {
             "train" -> g.launchTrain()
             "jump" -> g.launchJump()
+            "base" -> g.launchBase()
             "dolphins" -> g.launchDolphins()
             "jetski" -> g.launchJetski()
             "breach" -> g.launchBreach()

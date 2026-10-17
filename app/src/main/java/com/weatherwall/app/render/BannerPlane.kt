@@ -54,11 +54,12 @@ class BannerPlane(private val dp: Float) {
      * Starts a pass across the sky. [haze] 0..1 fades it in fog or heavy cloud; it flies at a height
      * between [top] and [top] + [band] (fractions of the screen height).
      */
-    fun launch(haze: Float = 1f, top: Float = 0.38f, band: Float = 0.16f) {
+    fun launch(haze: Float = 1f, top: Float = 0.38f, band: Float = 0.16f, tow: Boolean = true) {
         if (w == 0f) return
+        towing = tow
         dir = if (rnd.nextBoolean()) 1f else -1f
         baseY = h * (top + rnd.nextFloat() * band) // between the top widgets and the mountain (or skyline)
-        val travel = w + planeLen + towLen + bannerLen
+        val travel = w + planeLen + trail()
         speed = travel / (25f + rnd.nextFloat() * 10f)
         x = if (dir > 0) -0.02f * w else w * 1.02f // nose just off-screen; the banner follows
         alpha = (255 * haze).toInt().coerceIn(0, 255)
@@ -70,16 +71,19 @@ class BannerPlane(private val dp: Float) {
         if (!active) return
         t += dt
         x += dir * speed * dt
-        val tailEnd = x - dir * (planeLen + towLen + bannerLen)
+        val tailEnd = x - dir * (planeLen + trail())
         if ((dir > 0 && tailEnd > w + 10f) || (dir < 0 && tailEnd < -10f)) active = false
     }
+
+    /** False for a plain pass with no banner behind (the Garden Route, except on holidays). */
+    private var towing = true
+    private fun trail() = if (towing) towLen + bannerLen else 0f
 
     fun draw(canvas: Canvas) {
         if (!active) return
         val y = baseY + sin(t * 0.5f) * 5f * dp
         val pitch = cos(t * 0.5f) * 2.5f // degrees, nose follows the bob
-        drawBanner(canvas, y)
-        drawTowLine(canvas, y)
+        if (towing) { drawBanner(canvas, y); drawTowLine(canvas, y) }
         canvas.save()
         canvas.translate(x, y)
         canvas.rotate(-pitch * dir)

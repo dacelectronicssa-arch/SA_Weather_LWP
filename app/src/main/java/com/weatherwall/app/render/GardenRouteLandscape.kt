@@ -301,6 +301,11 @@ class GardenRouteLandscape(
         val rEdge = rough(S(0.7f, 0.515f, 0.64f, 0.58f, 0.6f, 0.66f, 0.56f, 0.74f, 0.53f, 0.79f), 14f, 52)
         landMass(s, l, S(0f, 0.44f, 0.18f, 0.47f) + lEdge + S(0.485f, 0.83f, 0.49f, 1f, 0f, 1f), lEdge, 0.14f, 31, 700, w * 0.45f)
         landMass(s, l, S(1f, 0.46f, 0.84f, 0.49f) + rEdge + S(0.515f, 0.83f, 0.51f, 1f, 1f, 1f), rEdge, 0.14f, 32, 700, w * 0.55f)
+        // A little sand fan at the foot of the left cliff, where the BASE jumpers land.
+        p.style = Paint.Style.STROKE; p.strokeWidth = 5f * k; p.color = withAlpha(pal.foam, 200)
+        s.drawArc(w * 0.425f, h * 0.697f, w * 0.5f, h * 0.713f, 0f, 180f, false, p)
+        fill(mix(pal.earth, Color.rgb(230, 212, 168), 0.85f)); l.drawOval(w * 0.425f, h * 0.695f, w * 0.498f, h * 0.711f, p)
+        fill(withAlpha(mix(pal.earth, Color.BLACK, 0.2f), 90)); l.drawOval(w * 0.43f, h * 0.703f, w * 0.49f, h * 0.711f, p)
         // The near walls, steep and close, framing the V at the foot of the screen.
         landMass(s, l, rough(S(0f, 0.52f, 0.1f, 0.59f, 0.2f, 0.7f, 0.28f, 0.82f, 0.34f, 0.92f, 0.38f, 1f), 16f, 53) + floatArrayOf(0f, h), null, 0f, 33, 1100, w * 0.36f)
         landMass(s, l, rough(S(1f, 0.56f, 0.9f, 0.62f, 0.8f, 0.72f, 0.7f, 0.84f, 0.63f, 0.94f, 0.6f, 1f), 16f, 54) + floatArrayOf(w, h), null, 0f, 34, 1100, w * 0.62f)
@@ -388,8 +393,14 @@ class GardenRouteLandscape(
             while (xx <= -3f) { proj(xx, yy, dd); if (first) path.moveTo(ox, oy) else path.lineTo(ox, oy); first = false; xx += 4f }
             c.drawPath(path, p)
         }
+        // The jump platform, cantilevered out past the arch's near side.
+        fill(mix(sh, Color.BLACK, 0.25f)); quad(c, -3f, deckB + 3.2f, -3f, 6f, deckB + 3.2f, -3f, 6f, deckB + 3.2f, -7.4f, -3f, deckB + 3.2f, -7.4f)
         fill(mix(sh, Color.BLACK, 0.15f)); quad(c, -3f, deckB, -4f, 6f, deckB, -4f, 6f, deckB + 3.2f, -4f, -3f, deckB + 3.2f, -4f)
-        fill(if (night) 0xFFF5C46A.toInt() else 0xFFE64B2C.toInt()); quad(c, -3f, deckB + 2.7f, -4f, 6f, deckB + 2.7f, -4f, 6f, deckB + 3.2f, -4f, -3f, deckB + 3.2f, -4f)
+        fill(mix(sh, Color.BLACK, 0.05f)); quad(c, -1f, deckB + 2.4f, -7.4f, 4f, deckB + 2.4f, -7.4f, 4f, deckB + 3.4f, -7.4f, -1f, deckB + 3.4f, -7.4f)
+        fill(if (night) 0xFFF5C46A.toInt() else 0xFFE64B2C.toInt()); quad(c, -1f, deckB + 3.0f, -7.42f, 4f, deckB + 3.0f, -7.42f, 4f, deckB + 3.4f, -7.42f, -1f, deckB + 3.4f, -7.42f)
+        p.style = Paint.Style.STROKE; p.strokeWidth = max(1f, 0.6f * k); p.color = mix(conc, sh, 0.4f) // its rail
+        proj(-1f, deckB + 1.6f, -7.4f); val r0x = ox; val r0y = oy; proj(1f, deckB + 1.6f, -7.4f); c.drawLine(r0x, r0y, ox, oy, p)
+        p.style = Paint.Style.FILL
         if (night) { // lights along the Skywalk, and a soft floodlight on the arch
             X = xMin
             while (X < 0f) { proj(X, deckB + 2.6f, -3f); glow(c, ox, oy, 600f / oz * 3f * k, 0xFFD68C, 0.7f); X += 10f }
@@ -495,30 +506,7 @@ class GardenRouteLandscape(
 
     private class Walker(var X: Float, var v: Float)
     private val walkers = List(4) { Walker(-100f + it * 22f, (if (it % 2 == 0) 1f else -1f) * (0.9f + it * 0.15f)) }
-    private var jumpT = -1f
-    private var nextJump = 60f + rnd.nextFloat() * 120f
-
-    /**
-     * Metres below the platform: free fall to full stretch, then damped bounces on the cord.
-     * (Shorter than the real 216 m drop so the jumper stays on screen.)
-     */
-    private fun drop(t: Float): Float {
-        val stretch = 55f
-        if (t < 3.2f) { val u = t / 3.2f; return stretch * (1f - cos(u * PI.toFloat() / 2f)).pow(1.15f) }
-        val kk = t - 3.2f
-        return stretch - stretch * 0.55f * abs(sin(kk * 1.4f)) * exp(-kk * 0.45f)
-    }
-
-    private fun drawFigure(c: Canvas, x: Float, y: Float, sc: Float, upside: Boolean, col: Int) {
-        c.save(); c.translate(x, y); c.scale(sc, sc); if (upside) c.rotate(180f + sin(time * 2f) * 11f)
-        fill(col)
-        if (upside) {
-            c.drawRect(-3.5f, 2f, 3.5f, 18f, p); c.drawCircle(0f, 22f, 4f, p)
-            p.style = Paint.Style.STROKE; p.strokeWidth = 2.5f; p.color = col
-            c.drawLine(-3f, 8f, -10f, 20f, p); c.drawLine(3f, 8f, 10f, 20f, p)
-        } else { c.drawRect(-3f, -18f, 3f, -4f, p); c.drawCircle(0f, -21f, 3.5f, p) }
-        c.restore()
-    }
+    private val jumpers = GardenJumpers(foc, cxb, hz, k, h - dy, w * 0.462f, h * 0.703f) { X, Y, D, out -> proj(X, Y, D); out[0] = ox; out[1] = oy; out[2] = oz }
 
     private fun drawUnderDeck(c: Canvas) {
         if (daytime) for (wk in walkers) {
@@ -530,14 +518,8 @@ class GardenRouteLandscape(
             c.drawRect(x - hh * 0.07f + step, y0 + hh * 0.62f, x - hh * 0.01f + step, y0 + hh, p)
             c.drawRect(x + hh * 0.02f - step, y0 + hh * 0.62f, x + hh * 0.08f - step, y0 + hh, p)
         }
-        proj(1.5f, deckB + 3.2f, -3.5f); val px = ox; val top = oy; val sc = 60f / oz * k
-        val col = if (night) 0xFFF0D9A8.toInt() else 0xFFE0462A.toInt()
-        if (jumpT >= 0f) {
-            proj(1.5f + sin(jumpT * 0.9f) * 1.5f, deckB + 3.2f + drop(jumpT), -3.5f)
-            p.style = Paint.Style.STROKE; p.strokeWidth = 2f * k; p.color = 0xFF1D1D1D.toInt()
-            c.drawLine(px, top, ox, oy, p)
-            drawFigure(c, ox, oy, sc, true, col)
-        } else if (daytime) drawFigure(c, px, top, sc, false, col)
+        jumpers.night = night
+        jumpers.draw(c)
     }
 
     // ---- The Outeniqua Choo Tjoe -----------------------------------------------------------------------
@@ -549,7 +531,6 @@ class GardenRouteLandscape(
     private var trainX = Float.NaN
     private var whistle = 0f
     private var chuffT = 0f
-    private var nextTrain = 20f + rnd.nextFloat() * 40f
     private val parapet = Path()
 
     private fun face(c: Canvas, xa: Float, xb: Float, y0: Float, y1: Float, d: Float, col: Int) {
@@ -557,16 +538,11 @@ class GardenRouteLandscape(
     }
 
     private fun updateTrain(dt: Float) {
-        if (trainX.isNaN()) {
-            nextTrain -= dt
-            if (nextTrain <= 0f) launchTrain()
-            return
-        }
+        if (trainX.isNaN()) return
         trainX -= GardenDesign.TRAIN_SPEED * dt
         if (whistle > 0f) whistle -= dt
         if (trainX + trainLen < -80f) {
             trainX = Float.NaN
-            nextTrain = 60f * (GardenDesign.TRAIN_EVERY_MIN + rnd.nextFloat() * (GardenDesign.TRAIN_EVERY_MAX - GardenDesign.TRAIN_EVERY_MIN))
             return
         }
         // Smoke on every chuff, steam from the cylinders, and the whistle as it rolls onto the bridge.
@@ -582,7 +558,33 @@ class GardenRouteLandscape(
     }
 
     fun launchTrain() { if (trainX.isNaN()) { trainX = 175f; whistle = 2.6f } }
-    fun launchJump() { if (jumpT < 0f) jumpT = 0f }
+    fun launchJump() = jumpers.launchBungy()
+    fun launchBase() = jumpers.launchBase()
+
+    // ---- When things happen: by the clock, not by drawing time ---------------------------------------
+    // The wallpaper only runs while it's on screen, often for a few seconds at a time, so timers
+    // counted in drawn frames would rarely come due. These are wall-clock times, kept across scene
+    // rebuilds (weather updates); anything that came due while the screen was off happens soon
+    // after it's next shown.
+
+    private fun minutes(a: Float, b: Float) = ((a + rnd.nextFloat() * (b - a)) * 60_000f).toLong()
+
+    private fun schedule() {
+        val now = System.currentTimeMillis()
+        if (nextTrainAt == 0L) nextTrainAt = now + minutes(0.3f, 1f)
+        if (nextBungyAt == 0L) nextBungyAt = now + minutes(0.4f, 1.2f)
+        if (nextBaseAt == 0L) nextBaseAt = now + minutes(2.5f, 5f)
+        if (now >= nextTrainAt && trainX.isNaN()) {
+            launchTrain(); nextTrainAt = now + minutes(GardenDesign.TRAIN_EVERY_MIN, GardenDesign.TRAIN_EVERY_MAX)
+        }
+        val jumpWeather = daytime && !grey && cfg.wind < 0.7f
+        if (now >= nextBungyAt && !jumpers.bungyActive && !jumpers.baseActive) {
+            if (jumpWeather) { jumpers.launchBungy(); nextBungyAt = now + minutes(2f, 4f) } else nextBungyAt = now + 60_000L
+        }
+        if (now >= nextBaseAt && !jumpers.bungyActive && !jumpers.baseActive) {
+            if (jumpWeather && cfg.wind < 0.45f) { jumpers.launchBase(); nextBaseAt = now + minutes(6f, 12f) } else nextBaseAt = now + 90_000L
+        }
+    }
     fun launchDolphins() = bay.launchDolphins()
     fun launchJetski() = bay.launchJetski()
     fun launchBreach() = bay.launchBreach()
@@ -746,13 +748,13 @@ class GardenRouteLandscape(
         updateTrain(dt)
         updatePuffs(dt)
         for (wk in walkers) { wk.X += wk.v * dt; if (wk.X < -125f || wk.X > -6f) wk.v = -wk.v }
-        if (jumpT >= 0f) { jumpT += dt; if (jumpT > 13f) jumpT = -1f }
-        else if (daytime && !grey) { nextJump -= dt; if (nextJump <= 0f) { jumpT = 0f; nextJump = 120f + rnd.nextFloat() * 180f } }
+        jumpers.update(dt)
+        schedule()
     }
 
     /** 2 = something moves quickly (train, jump, jetski, dolphins, a breach); 0 = only the bay drifting (the calm rate). */
     val motion: Int get() {
-        return if (!trainX.isNaN() || jumpT >= 0f || bay.busy || puffs.isNotEmpty()) 2 else 0
+        return if (!trainX.isNaN() || jumpers.bungyActive || jumpers.baseActive || bay.busy || puffs.isNotEmpty()) 2 else 0
     }
 
     override fun draw(canvas: Canvas, onWater: ((Canvas) -> Unit)?) {
@@ -773,6 +775,10 @@ class GardenRouteLandscape(
     private companion object {
         const val CAT = 0; const val SKI = 1; const val YACHT = 2; const val JETSKI = 3
         const val LOCO = 0; const val TENDER = 1; const val COACH = 2
+        // Wall-clock times of the next visits (0 = not yet planned), shared by every rebuild of the scene.
+        var nextTrainAt = 0L
+        var nextBungyAt = 0L
+        var nextBaseAt = 0L
 
         val DAY = Pal(0xFF1D4F9A.toInt(), 0xFF2A7BBD.toInt(), 0xFF3CC4C8.toInt(), 0xFF9FD0E6.toInt(), 0xFFF4FBFF.toInt(), 0xFF5C8F2C.toInt(), 0xFFA3C84C.toInt(), 0xFFB8643A.toInt(), 0xFFA19C90.toInt(), 0xFFD8D3C8.toInt(), 0xFF8F8A82.toInt(), 0xFFC7DDE6.toInt())
         val GOLD = Pal(0xFF2B3D6B.toInt(), 0xFF4C6189.toInt(), 0xFF6FA6A2.toInt(), 0xFFFFCF8A.toInt(), 0xFFFFE9CF.toInt(), 0xFF6B6E2A.toInt(), 0xFFC0A94A.toInt(), 0xFFC9713E.toInt(), 0xFFB8977A.toInt(), 0xFFF0C79A.toInt(), 0xFF7D6A5C.toInt(), 0xFFE9B88F.toInt())

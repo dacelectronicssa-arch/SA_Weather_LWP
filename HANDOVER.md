@@ -76,10 +76,14 @@ The user asks for a new branch for each new scene.
   - **Light:** day, golden-hour and night palettes blend with twilight; overcast, rain or fog grey it; sun or moon glitter follows `setGlint`.
   - **Bay** (`GardenBay.kt`): models are drawn in metres and scaled by distance; wakes are Kelvin wakes foreshortened on the water plane; breach splashes are droplets on ballistic arcs.
   - **Live:** surf washes along every shore and swells funnel up the inlet. Container ships and tankers cross near the horizon. The bay has southern right whales (surfacing, V-blow, flukes, a breach every third cycle), a dolphin pod and a jetski (each comes and goes), a whale-watching catamaran, a ski-boat and yachts (daytime only), and at night navigation lights and a chokka boat.
-  - **Under the deck:** Skywalk walkers, and a bungy jump every 2–5 minutes in daytime dry weather.
+  - **Under the deck:** Skywalk walkers. Jumpers (`GardenJumpers.kt`) leave from a platform just off the arch's near side.
+    - **Bungy:** a spring-and-damper cord, sized so the first stretch stays on screen. A few bounces, a swing, then the winch back up (about 50 s).
+    - **BASE:** freefall, the canopy snapping open, then a glide down the gorge in S-turns to a sand fan in the inlet.
+  - **Scheduling:** train, bungy, BASE, dolphins and jetski are timed by the **wall clock**, kept across rebuilds (companion `next…At`). Drawing only runs while the wallpaper is visible, which is why the old frame timers never came due on the phone.
+  - **Visitors from the renderer:** the plane flies over without its banner (with one on holidays), and the geese skein is shared with the Savanna.
   - **Choo Tjoe:** the Outeniqua Choo Tjoe steams across from the right every 4–8 minutes (`GardenDesign`), drawn 1.7× life size as solid vehicles (side and end faces, a cylindrical boiler, smokebox front, round chimney and dome; `drawVehicles`), with chuffing smoke, cylinder steam and a whistle plume.
   - **Frame rate:** `motion` is 2 (FAST) only while a quick visitor is on screen; otherwise the calm rate.
-  - **Debug and demo:** `renderer.launchGardenNow("train"|"jump"|"dolphins"|"jetski"|"breach")`; the demo tour plays all of them.
+  - **Debug and demo:** `renderer.launchGardenNow("train"|"jump"|"base"|"dolphins"|"jetski"|"breach")`; the demo tour plays all of them.
 - **Jhb City** (`JhbCityLandscape.kt`):
   - **Light:**
     - Sunlit faces and shaded sides follow `setLight`, and buildings cast shadows onto those behind (`castShadow`, painted with SRC_ATOP so they never touch the sky).
