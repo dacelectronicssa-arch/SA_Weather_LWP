@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "SA_Weather_LWP"
+rootProject.name = "WeatherWallpaper"
 include(":app")

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
-    android:author="@string/author"
-    android:description="@string/wallpaper_description"
-    android:settingsActivity="za.co.saweather.lwp.ui.SettingsActivity"
-    android:thumbnail="@drawable/thumbnail" />

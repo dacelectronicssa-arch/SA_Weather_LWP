@@ -1,76 +1,68 @@
-# SA Live Weather — Android live wallpaper
+# Weather Wallpaper: Cape Town
 
-An animated Android live wallpaper with five South African scenes. Each one runs through a full 24-hour weather cycle with real moon phases, a southern-hemisphere sky and ambient wildlife.
+An Android live wallpaper of Table Bay seen from Bloubergstrand. Its sky follows the live weather and the real positions of the sun, moon and stars, and the bay has the occasional visitor.
 
-![The five scenes at their hero moments](docs/scenes.png)
+## The scene
+- **Landscape:** Devil's Peak, Table Mountain, Lion's Head and Signal Hill. The buttress cliffs are lit from whichever side the sun is on, and the "tablecloth" cloud pours over the table on cloudy days and when the south-easter blows.
+- **Shoreline:** the city and Cape Town Stadium. At night the city lights come on and the stadium is floodlit.
+- **Water:** the bay with waves, sun and moon glints, and reflected lights, plus a beach with waves washing in.
 
-| Scene | Hero moment | Wildlife |
+## The weather
+Live conditions come from [Open-Meteo](https://open-meteo.com), which is free and needs no key, and refresh every 30 minutes while the wallpaper is visible. There are 8 conditions, each with a day and a night version: clear, partly cloudy, cloudy, fog, drizzle, rain, snow and thunderstorm. When the weather changes, the scenes crossfade.
+
+## The sky
+- **Sun and moon:** real positions for your location, including real rise and set times and heights. Their left-to-right spread is folded onto the screen, because from Cape Town they cross the northern sky behind this south-facing view.
+- **Moon phase:** calculated from the real angle between the sun and the moon. The lit side always faces the sun, and the dark side shows faint earthshine in a dark sky.
+- **Stars and Milky Way:** they turn around the south celestial pole by the real sidereal time. The Milky Way is washed out by a bright moon.
+- **Twilight:** a coral sky glow, pink alpenglow on the mountain and a warm tint on the bay around sunrise and sunset.
+
+## Visitors
+There's always something happening. Visitors run in four independent lanes that freely overlap:
+
+| Lane | Next one arrives after the last leaves | When |
 |---|---|---|
-| **Highveld Thunderstorm** (Gauteng) | Afternoon storm with fork lightning, rain and wind-bent grass | Prowling lion, pronking springbok herd, snake crossing the dirt road, secretary bird, circling vultures, lightning bugs |
-| **Cape Town Atlantic Seaboard** | Morning tablecloth pouring over Table Mountain | Breaching southern right whale, dolphins, seals (flop into the sea), penguins, diving gannets, passing ships |
-| **Kruger Bushveld** | Golden-hour silhouettes and red dust | Elephant herd crossing the riverbed at dawn, leopard on an acacia branch, crocodile, giraffe, resting lion pride (one yawns), hornbills, impala, kudu, a rare cheetah sprint, eyes glowing at night |
-| **Garden Route Forest** | Soft misty drizzle, light shafts in the morning | Boomslang, Knysna loerie with crimson flash, monitor lizard, bushbuck, tree frogs, fireflies, glowing fungi |
-| **Drakensberg** | Snow storm, then the darkest sky with the Milky Way | Bearded vulture, mountain leopard, eland herd, puff adder; fresh snow and a waterfall that freezes and swells |
+| Boats: MSC Armonia, container ship, yacht, jetski (max 3 at once, each in its own distance band) | A new one every 15–45 s while fewer than 3 are out | Day and night; jetski by day only |
+| Mavericks banner plane | 20–60 s | Daytime, not in thunderstorms |
+| Whales and dolphins (tail 40%, dolphins 40%, breach 20%, never the same twice in a row) | 5–20 s | Daytime |
+| Flock of 3–7 hadedas | 15–45 s | Daytime and twilight |
 
-## Features
-
-- **Shared cycle engine:** dawn → morning → midday → storm build → storm peak → clearing → golden hour → dusk → night → late night. Lighting, clouds, rain, wind, mist and wildlife behaviour are all derived from one continuous atmosphere model (`engine/Atmosphere.kt`).
-- **Time:** real device time, a demo mode (1×–120×, where 1× is already a full day every 24 minutes), or a fixed manual time.
-- **Celestial layer:**
-  - Accurate lunar phase from the 2000-01-06 new-moon epoch, lit on the correct side for the southern hemisphere, with a realistic rise time and arc.
-  - Moon glow that lights the scene.
-  - Twinkling star field with per-scene density and light pollution.
-  - A Milky Way band that appears only on dark, moon-poor nights at dark-sky sites.
-  - Shooting stars, the Southern Cross with its Pointers, Scorpius, Orion (upside down, as seen from the south), and Venus, Jupiter and Saturn.
-- **Weather:** rain, drizzle and snow particles; fork, sheet and distant heat lightning with flash lighting; a storm front that rolls in from the east; dust devils; fog banks; steam after rain; rainbows; heat shimmer; spray, falling leaves, fireflies and bioluminescent surf.
-- **Eight themes:** Authentic, Golden Africa, Moody Cape, Vivid, Noir (monochrome with a single warm accent, on Android 10+), Infrared, Sunset Always, and Dark Mode.
-- **Parallax:** from launcher scrolling and the gravity sensor, plus a subtle continuous drift.
-- **Performance presets:** High (60 fps), Balanced (30 fps), and Battery saver (20 fps, fewer particles, no parallax). Rendering pauses whenever the wallpaper isn't visible.
-- **Scene switching:** double-tap the home screen to change scene, or let scenes rotate every 4 hours.
-
-Audio from the brief isn't implemented yet.
-
-## Using the app
-
-Open **SA Live Weather** from the launcher to get a full-screen live preview. From there you can:
-
-- Pick a scene.
-- Scrub through the day with the time slider, or run the demo cycle.
-- Tap **Set as live wallpaper**.
-
-All settings are also available from the system wallpaper picker's *Settings* button.
+If the scene is ever completely empty, something launches straight away: a whale or dolphin event by day, or the ship at night. Visitors that came due while the screen was off arrive within seconds of you looking.
 
 ## Building
+- **Requirements:** JDK 17 and the Android SDK (platform 35, build-tools 35). `local.properties` points at the SDK.
+- **Build:** run `./gradlew assembleDebug`.
+- **Install:** run `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+- **Xiaomi/HyperOS phones:** enable **Install via USB** in Developer options. Avoid `am force-stop` while the app is the active wallpaper, because MIUI then reverts to the default wallpaper.
 
-Requirements: JDK 17 and the Android SDK (compileSdk 35).
-
-```bash
-./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
-./gradlew assembleRelease      # minified, signed with the debug key for side-loading
-```
-
-Every push runs the **Build APK** GitHub Actions workflow, which uploads both APKs as the `sa-weather-lwp-apks` artifact. For a Play Store release, replace the debug signing config in `app/build.gradle.kts` with a real keystore.
-
-## Architecture
-
-Everything is drawn procedurally with `android.graphics` (no bitmaps or third-party libraries). Static landscape strips are rendered once per screen size and tinted each frame through a `LightingColorFilter`. Animals and weather are drawn live from paths.
+## Debug hooks (debug builds only)
+Each of these launches the settings screen with an option:
 
 ```
-WeatherWallpaperService / ui.PreviewActivity
-        └── engine.SurfaceDriver      render thread, frame pacing, hardware canvas
-              └── engine.Renderer     clock, parallax, theme grade, layer stack:
-                    1  Sky            gradient, sun glow, light pollution
-                       Celestial      stars, Milky Way, constellations, planets, meteors, moon, sun
-                    3  Weather        clouds, storm front, lightning
-                    2,4,5 Scene       landscape layers + wildlife actors (scenes/*Scene.kt)
-                    3  Weather        dust, spray, leaves, fireflies, rain / drizzle / snow
-                    6  Scene          foreground (grass, foam, trunks)
-                    7  Weather        fog, haze, heat shimmer, rainbow, lightning flash
-                       Scene          emissive lights (lighthouse, city, fungi)
-                    8  Overlay        optional time / scene name
+adb shell am start -f 0x10008000 -n com.weatherwall.app/.SettingsActivity <extras>
 ```
 
-- `scenes/Scene.kt`: base class, layer pre-rendering, and landscape helpers.
-- `scenes/Actor.kt` and `scenes/Walker.kt`: wildlife behaviour. Activity windows control when an animal appears; when a storm builds, animals flee or hide; walking animals and herds cross the scene.
-- `engine/Wildlife.kt`: a parametric quadruped rig plus bird and snake drawers, shared by all scenes.
-- `engine/Theme.kt`: colour-matrix grades and the per-theme knobs (bloom, fog density, silhouettes, rain and lightning tint).
+| Extra | Effect |
+|---|---|
+| `--es override CLEAR:night` | Force a condition (`auto` returns to live weather) |
+| `--ef time_offset_h 15.9` | Shift the sky clock (`0` = real time) |
+| `--ez plane true` | Send the banner plane over now |
+| `--ez ship true` | Send the MSC Armonia past now |
+| `--es sea tail\|breach\|dolphins` | Start a whale or dolphin event now |
+| `--ez birds true` | Send a flock of hadedas over now |
+| `--es boat yacht\|jetski\|container` | Send that boat across now |
+
+## Code map (`app/src/main/java/com/weatherwall/app/`)
+- `WeatherWallpaperService.kt`: the wallpaper engine, which runs the frame loop, the visibility handling and the weather refresh
+- `WeatherRepository.kt`: location and the Open-Meteo requests
+- `SettingsActivity.kt`: the settings screen and the debug hooks
+- `render/WeatherRenderer.kt`: crossfades between scenes and schedules the visitors
+- `render/WeatherScene.kt`: the sky, stars, Milky Way, sun, moon, clouds and weather effects
+- `render/CapeTownLandscape.kt`: the mountains, tablecloth, city, stadium, bay and beach
+- `render/MountainDesign.kt`: the mountain shapes (back ridge and Devil's Peak) and rock settings, exported from the in-chat mountain designer. Replace the values here to apply a new design. `TableclothDesign` in the same file holds the tablecloth waterfall settings (from the in-chat tablecloth preview).
+- `render/ShorelineCity.kt`: the city along the shore (Woodstock to Sea Point), generated from the settings in `ShorelineDesign`, which come from the in-chat shoreline designer. The same generator is used in the designer, so the layout matches.
+- `render/SunRays.kt`: the god-rays sun, a warm disc and glow with slowly turning, shimmering beams that warm as the sun gets low. Settings are in `SunDesign`, from the in-chat sun designer.
+- `render/FairClouds.kt`: clouds for clear, partly cloudy, cloudy, fog and snow: long layered decks and high wisps, painted once into bitmaps. Settings are in `CloudDesign`, from the in-chat cloud designer.
+- `render/StormCeiling.kt`: the rain sky, a live storm-cloud shader running on the GPU (Android 13 and later; older phones keep the drawn clouds). Its settings are in `StormDesign`, from the in-chat storm preview.
+- `render/SceneConfig.kt`: maps each weather condition to its look
+- `render/Astro.kt`, `SkyClock.kt` and `MoonPhase.kt`: the astronomy
+- `render/MilkyWay.kt`, `BannerPlane.kt`, `CruiseShip.kt`, `Boats.kt` (yacht, jetski, container ship), `MarineLife.kt` and `HadedaFlock.kt`: the Milky Way and the visitors

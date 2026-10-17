@@ -4,23 +4,20 @@ plugins {
 }
 
 android {
-    namespace = "za.co.saweather.lwp"
+    namespace = "com.weatherwall.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "za.co.saweather.lwp"
+        applicationId = "com.weatherwall.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "1.0"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signed with the debug key so CI produces an installable APK; swap in a real keystore for Play.
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
         }
     }
 

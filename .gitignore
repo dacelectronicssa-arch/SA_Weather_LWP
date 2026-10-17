@@ -1,9 +1,13 @@
-.gradle/
+# Build output and Gradle/IDE caches
 build/
-/local.properties
-/.idea/
+.gradle/
+.kotlin/
+.idea/
 *.iml
-.DS_Store
-/captures
-.externalNativeBuild
-.cxx
+captures/
+
+# Machine-specific (Android SDK path)
+local.properties
+
+# Stale copy of the project left behind when the folder was moved
+/WeatherWallpaper/

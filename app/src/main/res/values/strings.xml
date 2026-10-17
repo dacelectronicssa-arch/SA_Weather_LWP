@@ -1,7 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">SA Live Weather</string>
-    <string name="settings_title">Wallpaper settings</string>
-    <string name="author">SA Weather LWP</string>
-    <string name="wallpaper_description">Five South African scenes — Highveld, Cape Town, Kruger, Garden Route and Drakensberg — living through a full 24-hour weather cycle with real moon phases, the Milky Way and wildlife.</string>
+    <string name="app_name">Weather Wallpaper</string>
+    <string name="wallpaper_description">An animated sky that follows the weather outside.</string>
 </resources>
