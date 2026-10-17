@@ -19,6 +19,9 @@ interface Landscape {
     fun setLight(direction: Float, intensity: Float) {}
     fun setGlint(x: Float, strength: Float) {}
 
+    /** 0..1: a lightning flash lighting up the land. */
+    fun setFlash(amount: Float) {}
+
     /** Free perches for pigeons, [gap] apart: one array of (x, y) pairs per roof or ledge. */
     fun roofSpots(gap: Float): List<FloatArray> = emptyList()
 }

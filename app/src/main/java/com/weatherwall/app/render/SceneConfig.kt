@@ -118,7 +118,9 @@ data class SceneConfig(
             }
             // Rounded so the scene is rebuilt only every few hours as the phase advances.
             val moonPhase = (MoonPhase.phase(nowMs) * 100).roundToInt() % 100 / 100f
-            return base.copy(night = !day, tablecloth = tablecloth, moonPhase = moonPhase, condition = w.condition, scene = scene,
+            // The city's light pollution: only the brighter third of the stars show over Jhb.
+            val stars = if (scene == Scenes.JHB) base.stars * 3 / 10 else base.stars
+            return base.copy(night = !day, tablecloth = tablecloth, moonPhase = moonPhase, condition = w.condition, scene = scene, stars = stars,
                 southern = latitude < 0,
                 latitude = latitude.toFloat(), longitude = longitude.toFloat())
         }

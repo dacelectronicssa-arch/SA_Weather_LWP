@@ -69,6 +69,26 @@ The user asks for a new branch for each new scene.
     - Brush dabs along the hair, warm rim light on the back, a darker belly edge and per-animal coat variation (`Pose.coat`).
     - Detail: a striped zebra mane with shadow stripes, a shaggy wildebeest mane and beard, mottled elephants with red dust on their legs, varied giraffe patches and lion mane strands.
     - Brush dabs only appear on near animals (`detail`); everything fades flat for dusk silhouettes (`shading`).
+- **Jhb City** (`JhbCityLandscape.kt`):
+  - **Light:**
+    - Sunlit faces and shaded sides follow `setLight`, and buildings cast shadows onto those behind (`castShadow`, painted with SRC_ATOP so they never touch the sky).
+    - A brown Highveld haze collects at the foot of each layer (`smog`).
+    - Hillbrow Tower and Ponte are shaded with `cylShader`.
+    - The city is rebaked only when the quantised light changes (`key()`).
+  - **Detail:** water tanks, dishes and stain streaks on the buildings; microwave drums and a red-and-white mast on the tower; layered trees with trunks.
+  - **Live windows:** up to 900 windows (`record`, minus the ones `hideCoveredWindows` finds hidden) are drawn over the bake.
+    - They come on through dusk and thin out after 10pm (`litFraction`).
+    - Single windows switch on and off now and then, and a few flicker like TVs.
+  - **Nelson Mandela Bridge** (`bridge()`):
+    - Two white asymmetric pylons with fanned stays, cars, minibus taxis and trucks seen through the railing, and lamp posts.
+    - At night the LED wash cycles blue, violet, magenta, teal and warm white (`ledColour`), with headlights and tail-lights on the traffic.
+    - Pigeons can perch on its railing.
+  - **Beacons:** red aircraft lights blink on the tallest roofs.
+  - **Petals:** jacaranda petals drift down in season.
+  - **Weather and night:**
+    - Light pollution: 30% of the stars (`SceneConfig`), a faint Milky Way (`WeatherScene`) and a taller orange glow.
+    - A lightning flash lights up the skyline (`Landscape.setFlash`).
+    - Rain darkens the city and leaves a wet sheen and car spray. The city dries over 1.5 h (`lastRainAt`).
 - **Demo mode:** `runDemo()` in `WeatherWallpaperService.kt` plays a 60-second tour suited to each scene.
 
 ## Code map (`app/src/main/java/com/weatherwall/app/`)

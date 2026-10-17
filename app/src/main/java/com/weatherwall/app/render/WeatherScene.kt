@@ -184,7 +184,7 @@ class WeatherScene(
         cfg.clouds > 4 -> 0.4f   // cloudy
         cfg.clouds > 1 -> 0.6f   // partly cloudy
         else -> 1f
-    }
+    } * (if (cfg.scene == Scenes.JHB) 0.15f else 1f) // city lights all but wash it out
 
     // ---- The land: Cape Town, the Savanna or Jhb City ------------------------------------
     private val landscape: Landscape =
@@ -338,6 +338,7 @@ class WeatherScene(
             }
             flash = max(0f, flash - dt * 3.5f)
             boltLife = max(0f, boltLife - dt)
+            landscape.setFlash(flash)
         }
     }
 
