@@ -224,13 +224,13 @@ class SettingsActivity : Activity() {
 
     // ---- Scene picker --------------------------------------------------------------------------
 
-    private class SceneOption(val id: String, val name: String, val place: String)
+    private class SceneOption(val id: String, val name: String)
 
     private val sceneOptions = listOf(
-        SceneOption(Scenes.CAPE_TOWN, "Cape Town", "Table Bay"),
-        SceneOption(Scenes.SAVANNA, "Savanna", "The bushveld"),
-        SceneOption(Scenes.JHB, "Jhb City", "Hillbrow skyline"),
-        SceneOption(Scenes.ALTRON, "Altron", "Head office"),
+        SceneOption(Scenes.CAPE_TOWN, "Cape Town"),
+        SceneOption(Scenes.SAVANNA, "Savanna"),
+        SceneOption(Scenes.JHB, "Jhb City"),
+        SceneOption(Scenes.ALTRON, "Altron"),
     )
     private val sceneThumbs = HashMap<String, ImageView>()
     private val sceneFrames = HashMap<String, View>()
@@ -257,7 +257,6 @@ class SettingsActivity : Activity() {
             frame.addView(thumb, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
             tile.addView(frame, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(150)))
             tile.addView(Ui.text(this, o.name, 14f, Ui.TEXT, Ui.MEDIUM).apply { setPadding(dp(4), dp(8), 0, 0) })
-            tile.addView(Ui.text(this, o.place, 12f, Ui.MUTED).apply { setPadding(dp(4), 0, 0, 0) })
             sceneThumbs[o.id] = thumb
             sceneFrames[o.id] = frame
             row.addView(tile, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
