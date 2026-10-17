@@ -557,7 +557,7 @@ class AltronLandscape(
         yy = 800f
         while (yy < 905f) { line(c, 611f, onRight(611f, yy), x1, onRight(x1, yy), withAlpha(col(0xFF6C727C.toInt(), 0xFF5A4A56.toInt()), 200), 0.6f); yy += 4f }
         fill(c, rightBand(613f, 636f, 862f, 900f), litCol(0xFF2E3440.toInt(), 0xFF5A4636.toInt()))
-        word(c, floatArrayOf(566f, 829.5f, 605f, 843.5f, 605f, 857f, 566f, 844.5f), col(0xFF1B2C55.toInt(), 0xFF18224A.toInt()), weight = 0.2f, teal = false)
+        word(c, floatArrayOf(566f, 829.5f, 605f, 843.5f, 605f, 857f, 566f, 844.5f), col(0xFF1B2C55.toInt(), 0xFF18224A.toInt()), teal = false)
         // Ground floor glazing behind the canopy.
         foyerGlass(c, xc, x1, 866f, d.GROUND, left = false)
     }
@@ -583,7 +583,7 @@ class AltronLandscape(
         fill(c, blockBand(x0, x1, 877f, 907f), litCol(0xFF56606C.toInt(), 0xFF8C7A6A.toInt()))
         x = x0
         while (x < x1) { line(c, x, onBlock(x, 877f), x, onBlock(x, 907f), col(0xFF2E3440.toInt(), 0xFF2A2630.toInt()), 0.9f); x += 7f }
-        word(c, floatArrayOf(712.5f, 825f, 729f, 837f, 729f, 849f, 712.5f, 838f), col(0xFF1B2C55.toInt(), 0xFF2A2C50.toInt()), weight = 0.2f, teal = false)
+        word(c, floatArrayOf(712.5f, 825f, 729f, 837f, 729f, 849f, 712.5f, 838f), col(0xFF1B2C55.toInt(), 0xFF2A2C50.toInt()), teal = false)
         // A small wall light by the sign.
         if (lights) glow(c, 728f, 862f, 4f, 0xFFFFF4D8.toInt(), 220)
     }
@@ -888,60 +888,69 @@ class AltronLandscape(
         val base = 696f
         val quad = floatArrayOf(x0, onLeft(x0, top), x1, onLeft(x1, top), x1, onLeft(x1, base), x0, onLeft(x0, base))
         val white = if (lights) 0xFFF6F8FB.toInt() else col(0xFFF2F4F6.toInt(), 0xFFC9D2DE.toInt(), sunLeft)
-        if (lights) word(c, quad, withAlpha(0xFFDDEBFF.toInt(), (150 * (0.8f + 0.2f * deep)).toInt()), weight = 0.15f, teal = false, blur = 7f)
-        word(c, quad, white, weight = 0.15f, teal = true)
+        if (lights) word(c, quad, withAlpha(0xFFDDEBFF.toInt(), (150 * (0.8f + 0.2f * deep)).toInt()), teal = false, blur = 7f)
+        word(c, quad, white, teal = true)
     }
 
     /**
-     * ALTRON in the company's geometric capitals (an A without a crossbar, and a teal flash on the
-     * left of the T), mapped onto [quad] (top-left, top-right, bottom-right, bottom-left) with
-     * true perspective.
+     * The ALTRON wordmark, drawn to the company logo's own measurements (in the logo artwork's
+     * pixels: caps 71 tall from y 45 to 116, 11 px strokes). The A has a low crossbar; the T is a
+     * white bar to the left of its stem, with the teal block to the right. Mapped onto [quad]
+     * (top-left, top-right, bottom-right, bottom-left) with true perspective. Signs without
+     * the brand colours ([teal] false) draw the block in [color] too.
      */
-    private fun word(c: Canvas, quad: FloatArray, color: Int, weight: Float, teal: Boolean, blur: Float = 0f) {
-        val src = floatArrayOf(0f, 0f, WORD_W, 0f, WORD_W, 1f, 0f, 1f)
+    private fun word(c: Canvas, quad: FloatArray, color: Int, teal: Boolean, blur: Float = 0f) {
+        val src = floatArrayOf(LOGO_L, LOGO_TOP, LOGO_R, LOGO_TOP, LOGO_R, LOGO_BASE, LOGO_L, LOGO_BASE)
         m.setPolyToPoly(src, 0, quad, 0, 4)
         c.save()
         c.concat(m)
-        val glyph = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = weight
-            strokeCap = Paint.Cap.BUTT
-            strokeJoin = Paint.Join.MITER
-            this.color = color
-            if (blur > 0f) {
-                maskFilter = BlurMaskFilter(weight * blur * 0.35f, BlurMaskFilter.Blur.NORMAL)
-                strokeWidth = weight * 2.2f
-            }
+        val soft = if (blur > 0f) BlurMaskFilter(blur, BlurMaskFilter.Blur.NORMAL) else null
+        val fillP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; this.color = color; maskFilter = soft }
+        val strokeP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE; strokeCap = Paint.Cap.BUTT; strokeJoin = Paint.Join.MITER
+            strokeWidth = 11.5f; this.color = color; maskFilter = soft
         }
-        val h = weight / 2f
-        val gp = Path()
-        var x = 0f
-        // A
-        gp.moveTo(x, 1f); gp.lineTo(x + 0.4f, h * 0.6f); gp.lineTo(x + 0.8f, 1f)
-        x += 0.8f + GAP
+        if (soft != null) strokeP.strokeWidth = 16f
+        // O: a true circle, overshooting the cap height a little like the artwork, so it is drawn
+        // before the straight cuts below.
+        c.drawCircle(358.5f, 81f, 32.2f, strokeP)
+        // Straight cuts at cap height and on the baseline for every other letter.
+        c.clipRect(LOGO_L - 2f, LOGO_TOP, LOGO_R + 2f, LOGO_BASE)
+        val grow = if (soft != null) 2.5f else 0f
+        fun rect(l: Float, t: Float, r: Float, b: Float) = c.drawRect(l - grow, t - grow, r + grow, b + grow, fillP)
+        // A: two legs meeting at a narrow flat top, and a low crossbar.
+        c.drawLine(29.5f, 122f, 66.8f, 40f, strokeP)
+        c.drawLine(100f, 122f, 64.6f, 40f, strokeP)
+        rect(36f, 91f, 94f, 100.5f)
         // L
-        gp.moveTo(x + h, h - h); gp.lineTo(x + h, 1f - h); gp.lineTo(x + 0.5f, 1f - h)
-        x += 0.5f + GAP
-        // T (stem and the right half of the bar; the left half is the teal flash)
-        val tStem = x + 0.3f
-        gp.moveTo(tStem, 0f); gp.lineTo(tStem, 1f)
-        gp.moveTo(tStem - h, h); gp.lineTo(x + 0.62f, h)
-        val tealFrom = x
-        x += 0.62f + GAP
-        // R
-        gp.moveTo(x + h, 1f); gp.lineTo(x + h, h); gp.lineTo(x + 0.3f, h)
-        gp.cubicTo(x + 0.66f, h, x + 0.66f, 0.54f, x + 0.3f, 0.54f); gp.lineTo(x + h, 0.54f)
-        gp.moveTo(x + 0.3f, 0.54f); gp.lineTo(x + 0.62f, 1f)
-        x += 0.62f + GAP
-        // O
-        gp.addOval(RectF(x + h, h, x + 0.98f - h, 1f - h), Path.Direction.CW)
-        x += 0.98f + GAP
-        // N
-        gp.moveTo(x + h, 1f); gp.lineTo(x + h, h * 0.4f); gp.lineTo(x + 0.74f - h, 1f - h * 0.4f); gp.lineTo(x + 0.74f - h, 0f)
-        c.drawPath(gp, glyph)
-        if (teal && blur == 0f) {
-            glyph.color = if (lights) 0xFF4FD6E8.toInt() else 0xFF19A8C0.toInt()
-            c.drawLine(tealFrom + 0.02f, h, tStem - h, h, glyph)
+        rect(124f, 45f, 134.5f, 116f)
+        rect(124f, 106.5f, 165f, 116f)
+        // T: bar to the left of the stem; the teal block sits to the right.
+        rect(166f, 45f, 204.5f, 55.5f)
+        rect(193.5f, 45f, 204.5f, 116f)
+        // R: stem, a round bowl and a steep leg.
+        rect(245f, 45f, 255.5f, 116f)
+        val bowl = Path().apply {
+            moveTo(250f, 50.3f); lineTo(276f, 50.3f)
+            arcTo(RectF(258.5f, 50.3f, 293.5f, 85.3f), -90f, 180f, false)
+            lineTo(250f, 85.3f)
+        }
+        c.drawPath(bowl, strokeP)
+        c.drawLine(273.5f, 81f, 297.5f, 122f, strokeP)
+        // N: two stems and a corner-to-corner diagonal.
+        rect(423f, 45f, 434.5f, 116f)
+        rect(476f, 45f, 487f, 116f)
+        c.save()
+        c.clipRect(423f, LOGO_TOP, 487f, LOGO_BASE)
+        strokeP.strokeWidth = if (soft != null) 17f else 12.5f
+        c.drawLine(425f, 37f, 485.5f, 124f, strokeP)
+        c.restore()
+        // The T's block: teal on the brand sign, otherwise the letter colour.
+        if (blur == 0f) {
+            fillP.color = if (teal) (if (lights) mix(TEAL, Color.WHITE, 0.12f) else col(TEAL, scale(TEAL, 0.8f))) else color
+            rect(211f, 45f, 232.5f, 55.5f)
+        } else {
+            rect(211f, 45f, 232.5f, 55.5f)
         }
         c.restore()
     }
@@ -951,8 +960,13 @@ class AltronLandscape(
         const val TOP = 535f
         /** Where the main block ends and the silver block begins (photo x). */
         const val BLOCK_X = 658f
-        const val GAP = 0.18f
-        const val WORD_W = 0.8f + 0.5f + 0.62f + 0.62f + 0.98f + 0.74f + 5 * 0.18f
+        // The logo artwork's letter box, in its own pixels.
+        const val LOGO_L = 26f
+        const val LOGO_R = 487f
+        const val LOGO_TOP = 45f
+        const val LOGO_BASE = 116f
+        /** The brand teal of the T's block. */
+        val TEAL = Color.rgb(8, 184, 224)
         val NIGHT = Color.rgb(10, 14, 28)
         /** How brightly each foyer pane is lit (a fixed, irregular pattern). */
         val PANE_LIGHT = floatArrayOf(0.9f, 0.3f, 0.6f, 0.1f, 1f, 0.5f, 0.2f, 0.8f, 0.4f, 0.7f, 0f, 0.6f)
