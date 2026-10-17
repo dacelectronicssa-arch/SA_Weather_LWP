@@ -61,7 +61,7 @@ The user asks for a new branch for each new scene.
   - The photo's dusk colours, from twilight.
   - Night: the dusk colours darkened, with the sign, carport lamps and foyer lit.
 - The ALTRON wordmark is drawn as strokes and mapped onto the wall with `Matrix.setPolyToPoly`. The A has no crossbar, and the T has a teal flash on the left.
-- `AltronDesign.ZOOM` controls the framing: 1 fits the photo's full width; above 1 zooms in on `FOCUS_X`.
+- `AltronDesign.ZOOM` controls the framing: 1 fits the photo's full width; above 1 zooms in on `FOCUS_X`. The user chose **1.6**.
 - Scene id: `altron_hq`.
 
 ### Engine and settings

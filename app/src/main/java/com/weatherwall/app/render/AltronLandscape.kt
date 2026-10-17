@@ -24,7 +24,7 @@ object AltronDesign {
     const val HORIZON = 0.93f
 
     /** 1 shows the photo's full width; above 1 zooms in on [FOCUS_X], trimming the sides. */
-    const val ZOOM = 1f
+    const val ZOOM = 1.6f
     /** Photo x kept in the middle of the screen when zoomed (the logo and the corner). */
     const val FOCUS_X = 400f
 
@@ -253,6 +253,44 @@ class AltronLandscape(
             moveTo(330f, 962f); lineTo(456f, onRight(456f, d.GROUND) + 1f); lineTo(747f, 952f); lineTo(747f, 962f)
             lineTo(600f, 968f); lineTo(470f, 972f); lineTo(330f, 972f); close()
         }, litCol(0xFF9E8A80.toInt(), 0xFF6E5452.toInt()))
+        // Tonal patches in the brick (wear, oil, cleaner bricks), squashed by perspective.
+        val rnd = java.util.Random(11)
+        for (k in 0 until 46) {
+            val gy = d.EYE_Y + 10f + rnd.nextFloat() * (d.PHOTO_H - d.EYE_Y)
+            val depth = (gy - d.EYE_Y) / (d.PHOTO_H - d.EYE_Y)
+            val gx = rnd.nextFloat() * d.PHOTO_W
+            val r = 20f + 70f * depth * (0.5f + rnd.nextFloat())
+            glow(c, gx, gy, r, if (rnd.nextBoolean()) Color.BLACK else 0xFFE8C8D0.toInt(), 16 + rnd.nextInt(14), sy = 0.16f + 0.1f * depth)
+        }
+        // Faint bay lines in front of the loading doors, square to the wall.
+        val bayLine = withAlpha(col(0xFFEDEDED.toInt(), 0xFFC6B4B0.toInt()), 110)
+        for (k in 0..18) {
+            val bx = leftBayX(1.2f + k * 0.5f)
+            if (bx < 4f) break
+            val by = onLeft(bx, d.GROUND) + 9f
+            val dx = bx - d.RIGHT_VP
+            val dy = by - d.EYE_Y
+            val len = 0.32f
+            line(c, bx, by, bx + dx * len * 0.12f, by + dy * len, bayLine, 0.35f + 0.5f * ((by - d.EYE_Y) / 60f).coerceIn(0f, 1f))
+        }
+        // Walkway pavers under the entrance canopy: joints running to both vanishing points.
+        c.save()
+        c.clipPath(Path().apply {
+            moveTo(330f, 962f); lineTo(456f, onRight(456f, d.GROUND) + 1f); lineTo(747f, 952f); lineTo(747f, 962f)
+            lineTo(600f, 968f); lineTo(470f, 972f); lineTo(330f, 972f); close()
+        })
+        val joint = withAlpha(col(0xFF6E625E.toInt(), 0xFF3A2C30.toInt()), 150)
+        var jx = 300f
+        while (jx < 760f) { line(c, d.RIGHT_VP, d.EYE_Y, jx - 260f, 1042f, joint, 0.35f); jx += 7f }
+        var jy = 954f
+        while (jy < 975f) { line(c, 320f, jy + 4f, 747f, jy - 6f, joint, 0.35f); jy += 2.6f }
+        c.restore()
+        // Soft shadows from the canopy posts, thrown away from the lit foyer.
+        val shadow = withAlpha(Color.BLACK, if (lights) 70 else 40)
+        for (x in floatArrayOf(397f, 438f, 512f, 562f)) {
+            fill(c, Path().apply { moveTo(x - 1.2f, 962f); lineTo(x + 1.2f, 962f); lineTo(x - 12f, 978f); lineTo(x - 17f, 978f); close() }, shadow)
+        }
+        fill(c, Path().apply { moveTo(318f, 968f); lineTo(322f, 968f); lineTo(306f, 992f); lineTo(298f, 992f); close() }, shadow)
         if (wet) {
             // Wet paving holds a soft reflection of the building's lights.
             p.color = Color.BLACK
@@ -273,8 +311,15 @@ class AltronLandscape(
         // Translucent band under the roof, with its panel grid.
         val poly = col(0xFFCBD2D9.toInt(), 0xFF5D7EAC.toInt(), sun)
         fill(c, leftBand(x0, xc, d.ROOF, d.BAND), poly)
+        // The panels glow faintly from inside at dusk, brighter towards the top.
+        c.save(); c.clipPath(leftBand(x0, xc, d.ROOF, d.BAND))
+        p.color = Color.BLACK
+        p.shader = LinearGradient(0f, 560f, 0f, 760f, withAlpha(col(0xFFFFFFFF.toInt(), 0xFFD8CCD0.toInt()), 90), withAlpha(Color.WHITE, 0), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 540f, d.PHOTO_W, 900f, p); p.shader = null
+        c.restore()
         val grid = withAlpha(col(0xFF98A3AF.toInt(), 0xFF3C5478.toInt()), 200)
-        line(c, x0, onLeft(x0, 581f), xc, onLeft(xc, 581f), grid, 0.6f)
+        line(c, x0, onLeft(x0, 571f), xc, onLeft(xc, 571f), grid, 0.5f)
+        line(c, x0, onLeft(x0, 591f), xc, onLeft(xc, 591f), grid, 0.5f)
         run {
             var k = 0f
             while (k < 9.85f) {
@@ -286,13 +331,22 @@ class AltronLandscape(
         // Navy cladding with fine vertical ribs.
         val navy = col(0xFF233F63.toInt(), 0xFF1F3A63.toInt(), sun)
         fill(c, leftBand(x0, xc, d.BAND, d.CLAD), navy)
-        val rib = withAlpha(scale(navy, 0.78f), 170)
+        // Corrugation: dark troughs with a faint sheen on each crest, lighter towards the foot.
+        c.save(); c.clipPath(leftBand(x0, xc, d.BAND, d.CLAD))
+        p.color = Color.BLACK
+        p.shader = LinearGradient(0f, 600f, 0f, 860f, withAlpha(Color.BLACK, 40), withAlpha(Color.WHITE, 22), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 540f, d.PHOTO_W, 900f, p); p.shader = null
+        c.restore()
+        val rib = withAlpha(scale(navy, 0.7f), 190)
+        val crest = withAlpha(scale(navy, 1.45f), 110)
         run {
             var k = 0f
+            var odd = false
             while (k < 9.85f) {
                 val x = leftBayX(k)
-                line(c, x, onLeft(x, d.BAND), x, onLeft(x, d.CLAD), rib, 0.35f)
-                k += 0.06f
+                line(c, x, onLeft(x, d.BAND), x, onLeft(x, d.CLAD), if (odd) crest else rib, 0.35f)
+                odd = !odd
+                k += 0.035f
             }
         }
         // The sign bay: a deeper navy panel standing slightly proud of the wall.
@@ -311,23 +365,35 @@ class AltronLandscape(
         line(c, x0, onLeft(x0, d.ROOF), xc, d.ROOF, trim, 1.6f)
         line(c, x0, onLeft(x0, d.BAND), xc, d.BAND, col(0xFF4A6888.toInt(), 0xFF2E4C78.toInt()), 1.4f)
 
-        // Lower wall: a light ribbed band, then pale cladding with roller doors in the far bays.
-        val ribbed = col(0xFF8FA4BA.toInt(), 0xFF3A5C82.toInt(), sun)
+        // Lower wall: a light ribbed band, then pale horizontal cladding in every bay, lit warm
+        // under the carport; roller doors in the far bays.
+        val ribbed = col(0xFF8FA4BA.toInt(), 0xFF3E6086.toInt(), sun)
         fill(c, leftBand(x0, xc, d.CLAD, 775f), ribbed)
         for (k in 0..2) {
             val yy = 757f + k * 6f
-            line(c, x0, onLeft(x0, yy), xc, onLeft(xc, yy), withAlpha(scale(ribbed, 1.25f), 150), 0.5f)
+            line(c, x0, onLeft(x0, yy), xc, onLeft(xc, yy), withAlpha(scale(ribbed, 1.3f), 160), 0.5f)
         }
         val lowX = signX
-        val wall = litCol(0xFFDCDFE2.toInt(), 0xFFBCA27A.toInt(), sun)
-        fill(c, leftBand(x0, lowX, 775f, d.GROUND), wall)
-        fill(c, leftBand(x0, lowX, 775f, 800f), col(0xFFD4D9DE.toInt(), 0xFF8A97B0.toInt(), sun))
+        val glassX = 340f
+        val upper = col(0xFFD4D9DE.toInt(), 0xFF7E879E.toInt(), sun)
+        val lower = litCol(0xFFDCDFE2.toInt(), 0xFFB89C72.toInt(), sun)
+        fill(c, leftBand(x0, glassX, 775f, 852f), upper)
+        fill(c, leftBand(x0, glassX, 852f, d.GROUND), lower)
+        // Horizontal ribs on the cladding.
+        var ry = 778f
+        while (ry < d.GROUND) {
+            val base = if (ry < 852f) upper else lower
+            line(c, x0, onLeft(x0, ry), glassX, onLeft(glassX, ry), withAlpha(scale(base, 0.8f), 150), 0.35f)
+            ry += 3.2f
+        }
+        // A wall vent beside the sign bay.
+        fill(c, leftBand(leftBayX(1.3f), leftBayX(1.55f), 780f, 795f), col(0xFF6A7280.toInt(), 0xFF3C4256.toInt()))
         run {
             var k = 1.14f
             while (k < 9.85f) {
                 val x = leftBayX(k)
-                line(c, x, onLeft(x, 775f), x, onLeft(x, d.GROUND), withAlpha(scale(wall, 0.85f), 160), 0.4f)
-                k += 0.2f
+                line(c, x, onLeft(x, 775f), x, onLeft(x, d.GROUND), withAlpha(scale(lower, 0.82f), 170), 0.45f)
+                k += 1f
             }
         }
         // Roller doors and yellow bollards in each far bay.
@@ -337,32 +403,47 @@ class AltronLandscape(
             val a = leftBayX(1.14f + (i - 1) - 0.82f)
             val bx = leftBayX(1.14f + (i - 1) - 0.25f)
             fill(c, leftBand(bx, a, 872f, d.GROUND), door)
-            var yy = 878f
-            while (yy < d.GROUND) { line(c, bx, onLeft(bx, yy), a, onLeft(a, yy), withAlpha(scale(door, 0.82f), 140), 0.35f); yy += 6f }
+            var yy = 875f
+            while (yy < d.GROUND) { line(c, bx, onLeft(bx, yy), a, onLeft(a, yy), withAlpha(scale(door, 0.8f), 150), 0.35f); yy += 3.5f }
+            line(c, bx, onLeft(bx, 872f), bx, onLeft(bx, d.GROUND), withAlpha(scale(door, 0.6f), 200), 0.5f)
             val pb = leftBayX(1.14f + (i - 1) - 0.86f)
             val pyb = onLeft(pb, d.GROUND) + 2f
             val ph = (onLeft(pb, d.GROUND) - onLeft(pb, 922f))
             fill(c, Path().apply { addRect(pb - 0.9f, pyb - ph, pb + 0.9f, pyb, Path.Direction.CW) }, bollard)
+            fill(c, Path().apply { addRect(pb - 0.9f, pyb - ph * 0.55f, pb + 0.9f, pyb - ph * 0.42f, Path.Direction.CW) }, col(0xFF222222.toInt(), 0xFF1A1414.toInt()))
         }
+        // The roller shutter nearest the entrance (under the carport).
+        val shutter = litCol(0xFFC9CCD0.toInt(), 0xFF9C8A70.toInt())
+        fill(c, leftBand(272f, glassX - 4f, 880f, d.GROUND), shutter)
+        var sy = 882f
+        while (sy < d.GROUND) { line(c, 272f, onLeft(272f, sy), glassX - 4f, onLeft(glassX - 4f, sy), withAlpha(scale(shutter, 0.72f), 170), 0.4f); sy += 2.2f }
 
         // The entrance under the sign: a blue fascia box, louvred glazing and the glass foyer.
         val fasciaX = 305f
-        val fascia = col(0xFF4A7AA8.toInt(), 0xFF2B5885.toInt(), sun)
+        val fascia = col(0xFF4A7AA8.toInt(), 0xFF2C5A88.toInt(), sun)
         fill(c, leftBand(fasciaX, xc + 3f, 775f, 808f), fascia)
-        line(c, fasciaX, onLeft(fasciaX, 775f), xc + 3f, onLeft(xc + 3f, 775f), withAlpha(scale(fascia, 1.35f), 230), 1f)
-        val louvre = litCol(0xFF3E4752.toInt(), 0xFF5B5446.toInt())
-        fill(c, leftBand(lowX, xc, 808f, 865f), louvre)
+        // Its underside, in shadow.
+        fill(c, leftBand(fasciaX, xc + 3f, 808f, 812f), col(0xFF233E5A.toInt(), 0xFF0E1E34.toInt()))
+        line(c, fasciaX, onLeft(fasciaX, 775f), xc + 3f, onLeft(xc + 3f, 775f), withAlpha(scale(fascia, 1.45f), 230), 1f)
+        line(c, fasciaX, onLeft(fasciaX, 775f), fasciaX, onLeft(fasciaX, 812f), withAlpha(scale(fascia, 1.25f), 230), 0.8f)
+        val louvre = litCol(0xFF3E4752.toInt(), 0xFF4A4038.toInt())
+        fill(c, leftBand(glassX, xc, 812f, 865f), louvre)
         run {
             var k = 0f
-            while (k < 1.14f) {
+            val kEnd = (1f / (glassX - d.LEFT_VP) - 1f / (xc - d.LEFT_VP)) / d.BAY
+            while (k < kEnd) {
                 val x = leftBayX(k)
-                line(c, x, onLeft(x, 808f), x, onLeft(x, 865f), withAlpha(scale(louvre, 0.6f), 200), 0.7f)
-                k += 0.045f
+                line(c, x, onLeft(x, 812f), x, onLeft(x, 865f), withAlpha(if ((k / 0.04f).toInt() % 2 == 0) scale(louvre, 0.55f) else mix(louvre, 0xFFE8D2A4.toInt(), if (lights) 0.35f else 0.1f), 210), 0.6f)
+                k += 0.04f
             }
         }
-        foyerGlass(c, lowX, xc, 865f, d.GROUND, left = true)
+        foyerGlass(c, glassX, xc, 865f, d.GROUND, left = true)
         // The near corner trim.
         line(c, xc, d.ROOF, xc, d.CLAD, col(0xFFB9C3CC.toInt(), 0xFF7E90AE.toInt()), 1.6f)
+        // A security camera on the corner.
+        line(c, xc + 0.5f, 645f, xc + 3f, 648f, col(0xFF3A3E46.toInt(), 0xFF1C1E26.toInt()), 0.9f)
+        fill(c, Path().apply { addOval(RectF(xc + 1.6f, 647f, xc + 5f, 652.5f), Path.Direction.CW) }, col(0xFFE6E8EA.toInt(), 0xFF8C93A6.toInt()))
+        fill(c, Path().apply { addCircle(xc + 3.3f, 651f, 0.9f, Path.Direction.CW) }, col(0xFF1A1C22.toInt(), 0xFF0C0C12.toInt()))
 
         logo(c)
     }
@@ -380,7 +461,7 @@ class AltronLandscape(
                 val xa = x0 + (x1 - x0) * i / n
                 val xb = x0 + (x1 - x0) * (i + 1) / n
                 val pane = if (left) leftBand(xa, xb, y0, y1) else rightBand(xa, xb, y0, y1)
-                fill(c, pane, withAlpha(0xFFC49A5C.toInt(), (15 + 95 * lit).toInt()))
+                fill(c, pane, withAlpha(0xFFC49A5C.toInt(), (10 + 80 * lit).toInt()))
             }
         } else {
             fill(c, shape, col(0xFF3A4A5C.toInt(), 0xFF2A3446.toInt()))
@@ -436,9 +517,11 @@ class AltronLandscape(
             val span = 1f / (d.RIGHT_VP - x1) - 1f / (d.RIGHT_VP - xc)
             while (t < 1f) {
                 val x = rightX(t * span)
-                val ribCol = withAlpha(scale(mix(near, far, (x - xc) / (x1 - xc)), 0.72f), 190)
+                val base = mix(near, far, (x - xc) / (x1 - xc))
+                val odd = ((t / 0.009f).toInt() % 2) == 0
+                val ribCol = if (odd) withAlpha(scale(base, 0.66f), 200) else withAlpha(scale(base, 1.3f), 120)
                 line(c, x, onRight(x, d.BAND), x, onRight(x, d.CLAD), ribCol, 0.45f)
-                t += 0.012f
+                t += 0.009f
             }
         }
 
@@ -507,89 +590,153 @@ class AltronLandscape(
 
     // ---- Canopies --------------------------------------------------------------------------------
 
-    /** The long carport along the left wall: a dark roof with rows of lights underneath. */
+    /**
+     * The long carport along the left wall, seen from below: deep purlins running the length of
+     * the roof, lamps tucked up near the wall, and a lit front beam.
+     */
     private fun carport(c: Canvas) {
         val back = floatArrayOf(290f, 851f, 10f, 881f)   // where the roof meets the wall side
         val front = floatArrayOf(290f, 884f, 10f, 905f)  // its outer edge, nearer the camera
-        val under = litCol(0xFF4A4644.toInt(), 0xFF4A3A2E.toInt())
-        val roof = Path().apply {
-            moveTo(back[0], back[1]); lineTo(back[2], back[3]); lineTo(front[2], front[3]); lineTo(front[0], front[1]); close()
-        }
-        fill(c, roof, under)
-        // Rafters.
-        val rafter = col(0xFF2A2A2E.toInt(), 0xFF2A1E1A.toInt())
-        for (i in 0..16) {
-            val t = 1f - 1f / (1f + i * 0.35f)
-            val xb = back[0] + (back[2] - back[0]) * t
+        fun rx(t: Float) = back[0] + (back[2] - back[0]) * t
+        fun ry(u: Float, t: Float): Float {
             val yb = back[1] + (back[3] - back[1]) * t
             val yf = front[1] + (front[3] - front[1]) * t
-            line(c, xb, yb, xb, yf, rafter, 0.7f)
+            return yb + (yf - yb) * u
         }
-        // Outer edge beam, catching the light.
-        line(c, front[0], front[1], front[2], front[3], litCol(0xFF5A6470.toInt(), 0xFFB0703C.toInt()), 2.2f)
-        line(c, back[0], back[1], back[2], back[3], col(0xFF333A44.toInt(), 0xFF22202A.toInt()), 1.2f)
-        // Columns down to the apron.
+        fun strip(u0: Float, u1: Float): Path = Path().apply {
+            moveTo(rx(0f), ry(u0, 0f)); lineTo(rx(1f), ry(u0, 1f)); lineTo(rx(1f), ry(u1, 1f)); lineTo(rx(0f), ry(u1, 0f)); close()
+        }
+        // Underside: warm where the lamps are, falling off towards the outer edge.
+        val warmUnder = litCol(0xFF56514E.toInt(), 0xFF6A5038.toInt())
+        val coolUnder = litCol(0xFF3E3B3A.toInt(), 0xFF2C221C.toInt())
+        p.style = Paint.Style.FILL; p.color = Color.BLACK
+        p.shader = LinearGradient(0f, back[1], 0f, front[1], warmUnder, coolUnder, Shader.TileMode.CLAMP)
+        c.drawPath(strip(0f, 1f), p); p.shader = null
+        // Purlins: dark beams with a lit lower lip, receding along the roof.
+        val purlin = col(0xFF2A2A2C.toInt(), 0xFF1A1412.toInt())
+        val lip = withAlpha(litCol(0xFF7A7470.toInt(), 0xFFB07E50.toInt()), 200)
+        var u = 0.16f
+        while (u < 0.95f) {
+            fill(c, strip(u, u + 0.055f), purlin)
+            line(c, rx(0f), ry(u + 0.055f, 0f), rx(1f), ry(u + 0.055f, 1f), lip, 0.5f)
+            u += 0.13f
+        }
+        // Rafters, closer together with distance.
+        val rafter = col(0xFF2E2E32.toInt(), 0xFF22191A.toInt())
+        for (i in 0..18) {
+            val t = 1f - 1f / (1f + i * 0.32f)
+            line(c, rx(t), ry(0f, t), rx(t), ry(1f, t), rafter, 0.6f + 0.6f * (1f - t))
+        }
+        // Edge beams: the grey back member and the lit front fascia.
+        line(c, back[0], back[1], back[2], back[3], col(0xFF46505C.toInt(), 0xFF2A2C38.toInt()), 1.4f)
+        val fascia = litCol(0xFF5E6874.toInt(), 0xFF9C5E36.toInt())
+        fill(c, Path().apply {
+            moveTo(front[0], front[1] - 1.2f); lineTo(front[2], front[3] - 0.8f); lineTo(front[2], front[3] + 1.6f); lineTo(front[0], front[1] + 3f); close()
+        }, fascia)
+        line(c, front[0], front[1] - 1.2f, front[2], front[3] - 0.8f, withAlpha(mix(fascia, Color.WHITE, 0.35f), 230), 0.6f)
+        // Columns with a lit edge, down to the apron.
         val steel = col(0xFF3E4A58.toInt(), 0xFF1E2532.toInt())
-        for (x in floatArrayOf(205f, 228f, 265f, 292f, 150f, 108f, 74f, 46f)) {
+        val steelLit = litCol(0xFF6A7684.toInt(), 0xFF6A5A4E.toInt())
+        for (x in floatArrayOf(292f, 265f, 228f, 205f, 150f, 108f, 74f, 46f)) {
             val t = (back[0] - x) / (back[0] - back[2])
-            val top = front[1] + (front[3] - front[1]) * t
+            val top = ry(1f, t) + 2f
             val foot = 944f + (966f - 944f) * (x / 330f)
-            line(c, x, top, x, foot, steel, if (x > 200f) 1.6f else 1.1f)
+            val w = if (x > 200f) 1.8f else 1.1f
+            line(c, x, top, x, foot, steel, w)
+            line(c, x + w * 0.35f, top, x + w * 0.35f, foot, steelLit, w * 0.3f)
         }
-        // Lamps (glowing once the lights are on).
+        // Lamps: a hot core, a soft halo and a little horizontal flare.
         if (lights) {
-            for (row in floatArrayOf(0.3f, 0.72f)) {
-                var i = 0
-                while (i < 16) {
+            for (row in floatArrayOf(0.08f, 0.6f)) {
+                for (i in 0 until 15) {
                     val t = 1f - 1f / (1f + i * 0.3f + 0.15f)
-                    val x = back[0] + (back[2] - back[0]) * t
-                    val yb = back[1] + (back[3] - back[1]) * t
-                    val yf = front[1] + (front[3] - front[1]) * t
-                    val y = yb + (yf - yb) * row
-                    val r = 3.2f + 3.6f * (1f - t)
-                    glow(c, x, y, r * 4f, 0xFFFFD27A.toInt(), 185, sy = 0.6f)
-                    glow(c, x, y, r, 0xFFFFF6DC.toInt(), 255, sy = 0.5f)
-                    i++
+                    val x = rx(t)
+                    val y = ry(row, t) + 1.2f
+                    val r = 2.6f + 3.4f * (1f - t)
+                    glow(c, x, y, r * 4.5f, 0xFFFFC870.toInt(), 170, sy = 0.65f)
+                    glow(c, x, y, r * 2.6f, 0xFFFFEFC8.toInt(), 120, sx = 2.2f, sy = 0.18f)
+                    glow(c, x, y, r, 0xFFFFFBEE.toInt(), 255, sy = 0.55f)
                 }
             }
         }
     }
 
-    /** The steel canopy over the entrance, running off to the right along the block. */
+    /**
+     * The steel shade canopy over the entrance, as it appears in the photo: a blue-grey beam
+     * rising from the portal post to the near corner, then shade plates stepping down along the
+     * block, each with a lit edge and a bracket. Seen from below, so its deep underside shows,
+     * striped with purlins, back to the glass.
+     */
     private fun entranceCanopy(c: Canvas) {
-        val top = floatArrayOf(320f, 848f, 476f, 846f, 583f, 870f, 747f, 903f)
-        val bot = floatArrayOf(320f, 861f, 476f, 868f, 583f, 893f, 747f, 925f)
-        val under = col(0xFF3B3836.toInt(), 0xFF261B1B.toInt())
-        val slab = Path().apply {
-            moveTo(top[0], top[1]); lineTo(top[2], top[3]); lineTo(top[4], top[5]); lineTo(top[6], top[7])
-            lineTo(bot[6], bot[7]); lineTo(bot[4], bot[5]); lineTo(bot[2], bot[3]); lineTo(bot[0], bot[1]); close()
+        val outer = floatArrayOf(325f, 888f, 477f, 855f, 583f, 879f, 638f, 891f, 680f, 900f, 747f, 912f)
+        val inner = floatArrayOf(325f, 909f, 420f, 906f, 500f, 903f, 583f, 903f, 640f, 906f, 747f, 926f)
+        fun at(u: Float, x: Float) = yOn(outer, x) + (yOn(inner, x) - yOn(outer, x)) * u
+        fun strip(u0: Float, u1: Float): Path = Path().apply {
+            val xs = floatArrayOf(325f, 420f, 477f, 500f, 583f, 638f, 640f, 680f, 747f)
+            moveTo(xs[0], at(u0, xs[0])); for (x in xs.drop(1)) lineTo(x, at(u0, x))
+            for (x in xs.reversed()) lineTo(x, at(u1, x)); close()
         }
-        fill(c, slab, under)
-        // Light blue-grey edge beam along the top, darker fascia along the bottom edge.
-        val beam = col(0xFF8A9CB0.toInt(), 0xFF56708E.toInt())
-        p.style = Paint.Style.STROKE; p.strokeWidth = 2f; p.color = beam; p.shader = null
-        path.reset(); path.moveTo(top[0], top[1]); path.lineTo(top[2], top[3]); path.lineTo(top[4], top[5]); path.lineTo(top[6], top[7])
-        c.drawPath(path, p)
-        p.color = col(0xFF22262C.toInt(), 0xFF140E10.toInt()); p.strokeWidth = 2.4f
-        path.reset(); path.moveTo(bot[0], bot[1]); path.lineTo(bot[2], bot[3]); path.lineTo(bot[4], bot[5]); path.lineTo(bot[6], bot[7])
-        c.drawPath(path, p)
+        // Underside: dark plates, lit warm along each purlin by the lights below.
+        fill(c, strip(0f, 1f), col(0xFF34302F.toInt(), 0xFF1A1416.toInt()))
+        val lit = withAlpha(litCol(0xFF5E5A56.toInt(), 0xFF5A4234.toInt()), 150)
+        val dark = col(0xFF242224.toInt(), 0xFF100C0E.toInt())
+        var u = 0.08f
+        while (u < 0.95f) {
+            fill(c, strip(u, u + 0.035f), lit)
+            fill(c, strip(u + 0.035f, u + 0.08f), dark)
+            u += 0.2f
+        }
+        // Cross members down the underside.
+        val member = col(0xFF6E7C8C.toInt(), 0xFF3E4C60.toInt())
+        for (x in floatArrayOf(352f, 392f, 432f, 470f, 520f, 562f, 610f, 655f, 700f, 735f)) {
+            line(c, x, at(0f, x) + 0.8f, x - 3f, at(1f, x - 3f), member, 0.8f)
+        }
+        // The rising blue-grey beam on the left, with a highlight on top.
+        val beam = col(0xFF7E94AC.toInt(), 0xFF4E6A8C.toInt())
+        p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.BUTT; p.shader = null
+        p.strokeWidth = 3.2f; p.color = beam
+        c.drawLine(325f, 889.5f, 477f, 855.5f, p)
+        p.strokeWidth = 0.8f; p.color = mix(beam, Color.WHITE, 0.4f)
+        c.drawLine(325f, 887.8f, 477f, 853.8f, p)
+        // Plate edges stepping down to the right: a lit lip and a dark bracket at each end.
+        val edge = litCol(0xFFC4C0BA.toInt(), 0xFFB4A48C.toInt())
+        val bracket = col(0xFF2A2E36.toInt(), 0xFF141218.toInt())
+        var k = 2
+        while (k < outer.size - 2) {
+            val x0 = outer[k]; val y0 = outer[k + 1]; val x1 = outer[k + 2]; val y1 = outer[k + 3]
+            p.strokeWidth = 2f; p.color = edge
+            c.drawLine(x0 + 1f, y0 + 1.6f, x1 - 1.5f, y1 + 1.6f, p)
+            p.strokeWidth = 1.2f; p.color = bracket
+            c.drawLine(x0 + 1f, y0 - 0.4f, x1 - 1.5f, y1 - 0.4f, p)
+            fill(c, Path().apply { addRect(x1 - 4f, y1 - 2.5f, x1 + 1f, y1 + 3.5f, Path.Direction.CW) }, bracket)
+            k += 2
+        }
         p.style = Paint.Style.FILL
-        // Cross beams under the roof.
-        for (x in floatArrayOf(360f, 400f, 440f, 500f, 540f, 600f, 650f, 700f)) {
-            line(c, x, yOn(top, x), x - 4f, yOn(bot, x - 4f), col(0xFF55595F.toInt(), 0xFF3A2C28.toInt()), 0.8f)
-        }
-        // Columns.
+        // Square posts with a lit face, on small concrete footings.
         val steel = col(0xFF34404E.toInt(), 0xFF1C222C.toInt())
-        for (x in floatArrayOf(397f, 438f, 512f, 562f, 640f, 690f, 735f)) {
-            val foot = if (x < 600f) 962f else 955f
-            line(c, x, yOn(bot, x), x, foot, steel, if (x < 600f) 2.4f else 1.6f)
+        val steelLit = litCol(0xFF5E6C7C.toInt(), 0xFF4E5664.toInt())
+        val footing = litCol(0xFFA8A49E.toInt(), 0xFF6A5C5A.toInt())
+        for (x in floatArrayOf(393f, 440f, 512f, 553f, 633f, 663f, 690f, 735f)) {
+            val foot = if (x < 600f) 962f else 956f
+            val w = if (x < 600f) 2.6f else 1.7f
+            val topY = yOn(inner, x) - 2f
+            line(c, x, topY, x, foot, steel, w)
+            line(c, x - w * 0.3f, topY, x - w * 0.3f, foot, steelLit, w * 0.28f)
+            fill(c, Path().apply { addRect(x - w * 1.1f, foot - w * 0.9f, x + w * 1.1f, foot + w * 0.3f, Path.Direction.CW) }, footing)
         }
-        // The tall portal post in front, with its top beam.
-        line(c, 320f, 846f, 320f, 968f, steel, 3.2f)
-        line(c, 320f, 849f, 360f, 849f, steel, 2.4f)
-        // Under-canopy lights.
+        // The tall portal post in front, with its long top rail.
+        line(c, 322f, 846f, 322f, 968f, steel, 3.6f)
+        line(c, 321f, 846f, 321f, 968f, steelLit, 0.9f)
+        fill(c, Path().apply { addRect(317f, 965f, 327f, 970f, Path.Direction.CW) }, footing)
+        line(c, 320f, 848.5f, 477f, 848.5f, beam, 2.2f)
+        line(c, 320f, 847.6f, 477f, 847.6f, mix(beam, Color.WHITE, 0.35f), 0.6f)
+        line(c, 476f, 848f, 476f, 856f, beam, 2f)
+        // Downlights under the plates.
         if (lights) {
-            for (x in floatArrayOf(380f, 420f, 470f, 530f, 590f, 660f, 720f)) glow(c, x, yOn(bot, x) - 2f, 7f, 0xFFFFE2A6.toInt(), 170, sy = 0.5f)
+            for (x in floatArrayOf(372f, 418f, 466f, 528f, 590f, 655f, 715f)) {
+                glow(c, x, at(0.75f, x), 9f, 0xFFFFE2A6.toInt(), 150, sy = 0.45f)
+                glow(c, x, at(0.75f, x), 2.2f, 0xFFFFF8E6.toInt(), 255, sy = 0.6f)
+            }
         }
     }
 
@@ -613,7 +760,7 @@ class AltronLandscape(
         car(c, 40f, 937f, 36f, 11f, litCol(0xFFF2F2F0.toInt(), 0xFFE6DCCB.toInt()), bakkie = true)
         car(c, 22f, 937f, 18f, 9f, litCol(0xFFE4E6E8.toInt(), 0xFFC9C0B4.toInt()))
         // Blue disabled-parking signs.
-        for (x in floatArrayOf(218f, 263f)) {
+        for (x in floatArrayOf(218f, 263f, 345f)) {
             line(c, x, 945f, x, 924f, col(0xFF6A7480.toInt(), 0xFF3A4048.toInt()), 0.9f)
             fill(c, Path().apply { addRect(x - 2.2f, 920f, x + 2.2f, 928f, Path.Direction.CW) }, col(0xFF2A62B8.toInt(), 0xFF2A4C90.toInt()))
         }
@@ -624,26 +771,56 @@ class AltronLandscape(
         fill(c, Path().apply { moveTo(612f, 948f); lineTo(618f, 968f); lineTo(606f, 968f); close() }, col(0xFFF0601E.toInt(), 0xFFD05020.toInt()))
         fill(c, Path().apply { moveTo(609.6f, 956f); lineTo(614.4f, 956f); lineTo(615.2f, 959f); lineTo(608.8f, 959f); close() }, col(0xFFF4F4F4.toInt(), 0xFFD8D0D0.toInt()))
 
-        // The planted island and its kerb.
-        val kerb = col(0xFF9EA2A6.toInt(), 0xFF5E6276.toInt())
+        // The planted island: soil behind a rounded concrete kerb, a row of low shrubs and a
+        // young tree by the portal post.
         fill(c, Path().apply {
-            moveTo(262f, 972f); lineTo(450f, 1012f); quadTo(462f, 1016f, 450f, 1022f); lineTo(262f, 984f); close()
-        }, col(0xFF6F5A4A.toInt(), 0xFF3E3038.toInt()))
-        line(c, 262f, 984f, 452f, 1021f, kerb, 2.6f)
-        val leaf = col(0xFF4F7A3A.toInt(), 0xFF233826.toInt())
-        val leafHi = col(0xFF6F9A4C.toInt(), 0xFF35502E.toInt())
-        for (i in 0 until 16) {
-            val t = i / 15f
-            val x = 285f + 140f * t
-            val y = 974f + 37f * t - (i % 3) * 2f
-            val r = 3f + (i % 4) * 0.8f + t * 2.4f
-            fill(c, Path().apply { addCircle(x, y, r, Path.Direction.CW) }, leaf)
-            fill(c, Path().apply { addCircle(x - r * 0.3f, y - r * 0.4f, r * 0.5f, Path.Direction.CW) }, leafHi)
+            moveTo(262f, 970f); lineTo(452f, 1010f); quadTo(463f, 1015f, 452f, 1019f); lineTo(262f, 981f); close()
+        }, col(0xFF5A4A3E.toInt(), 0xFF2A2226.toInt()))
+        val kerbTop = litCol(0xFFB4B6B8.toInt(), 0xFF6C6C80.toInt())
+        val kerbSide = col(0xFF7E8286.toInt(), 0xFF3A3A4C.toInt())
+        fill(c, Path().apply {
+            moveTo(262f, 980f); lineTo(452f, 1018f); quadTo(466f, 1021f, 460f, 1026f); lineTo(262f, 986f); close()
+        }, kerbSide)
+        fill(c, Path().apply {
+            moveTo(262f, 979f); lineTo(452f, 1017f); quadTo(464f, 1019f, 461f, 1023f); quadTo(456f, 1021.5f, 452f, 1020.5f); lineTo(262f, 982.5f); close()
+        }, kerbTop)
+        val leafDark = col(0xFF3E6230.toInt(), 0xFF1A2618.toInt())
+        val leaf = col(0xFF4F7A3A.toInt(), 0xFF26381F.toInt())
+        val leafHi = col(0xFF78A050.toInt(), 0xFF3E5634.toInt())
+        // Young tree.
+        line(c, 357f, 997f, 357f, 948f, col(0xFF5A4636.toInt(), 0xFF2A2020.toInt()), 0.9f)
+        val tr = java.util.Random(5)
+        for (k in 0 until 26) {
+            val a = tr.nextFloat() * 6.283f
+            val rr = tr.nextFloat() * 11f
+            fill(c, Path().apply { addCircle(357f + kotlin.math.cos(a) * rr * 0.8f, 945f + kotlin.math.sin(a) * rr - (1f - rr / 11f) * 6f, 1.4f + tr.nextFloat() * 1.4f, Path.Direction.CW) },
+                withAlpha(if (k % 3 == 0) leafHi else leaf, 200))
+        }
+        // Shrubs: back row smaller, front row along the kerb.
+        val sr = java.util.Random(9)
+        for (row in 0..1) {
+            val n = if (row == 0) 12 else 14
+            for (i in 0 until n) {
+                val t = (i + 0.5f * row + 0.3f) / n
+                val x = 272f + 182f * t
+                val y = 971f + 38f * t + (if (row == 0) -3f else 4f)
+                val size = (2.2f + 3.6f * t) * (if (row == 0) 0.8f else 1f)
+                for (k in 0 until 7) {
+                    val ox = (sr.nextFloat() - 0.5f) * size * 1.6f
+                    val oy = -sr.nextFloat() * size * 0.9f
+                    fill(c, Path().apply { addCircle(x + ox, y + oy, size * (0.35f + sr.nextFloat() * 0.25f), Path.Direction.CW) }, if (k < 3) leafDark else leaf)
+                }
+                fill(c, Path().apply { addCircle(x - size * 0.2f, y - size * 0.8f, size * 0.28f, Path.Direction.CW) }, leafHi)
+            }
         }
 
         // Drain grate, manhole, the tar seam and the parking lines.
         fill(c, Path().apply { moveTo(272f, 1001f); lineTo(330f, 1001f); lineTo(334f, 1008f); lineTo(268f, 1008f); close() }, col(0xFF8A8C90.toInt(), 0xFF5A5866.toInt()))
         fill(c, Path().apply { moveTo(282f, 1003f); lineTo(320f, 1003f); lineTo(322f, 1006f); lineTo(280f, 1006f); close() }, col(0xFF2A2A2E.toInt(), 0xFF141218.toInt()))
+        for (k in 0 until 12) {
+            val gx = 284f + k * 3.1f
+            line(c, gx, 1003.2f, gx - 0.4f, 1005.8f, col(0xFF6E7076.toInt(), 0xFF3C3A46.toInt()), 0.5f)
+        }
         fill(c, Path().apply { addOval(RectF(457f, 1015f, 496f, 1027f), Path.Direction.CW) }, col(0xFF3A3A40.toInt(), 0xFF1E1A22.toInt()))
         fill(c, Path().apply { addOval(RectF(448f, 1011f, 505f, 1031f), Path.Direction.CW) }, withAlpha(col(0xFFB0AAA4.toInt(), 0xFF6E5E66.toInt()), 120))
         fill(c, Path().apply { addOval(RectF(457f, 1015f, 496f, 1027f), Path.Direction.CW) }, col(0xFF3A3A40.toInt(), 0xFF1E1A22.toInt()))
