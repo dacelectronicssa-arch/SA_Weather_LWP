@@ -21,7 +21,7 @@ object Prefs {
 
     fun maxFps(ctx: Context): Int = get(ctx).getInt(KEY_MAX_FPS, DEFAULT_MAX_FPS)
 
-    /** Which landscape to show: Scenes.CAPE_TOWN (default) or Scenes.SAVANNA. */
+    /** Which landscape to show: Scenes.CAPE_TOWN (default), SAVANNA, JHB or ALTRON. */
     const val KEY_SCENE = "scene"
 
     /** Debug builds only: hours to shift the sky clock by. */

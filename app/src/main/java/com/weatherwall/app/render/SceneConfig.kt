@@ -33,7 +33,7 @@ data class SceneConfig(
     val latitude: Float = -33.92f,
     val longitude: Float = 18.42f,
     val condition: WeatherCondition = WeatherCondition.CLEAR,
-    /** Which landscape: [Scenes.CAPE_TOWN] or [Scenes.SAVANNA]. */
+    /** Which landscape: one of [Scenes]. */
     val scene: String = Scenes.CAPE_TOWN,
 ) {
     /** A grey ceiling over the whole sky (overcast, drizzle, rain, storms): soft light, no glow. */

@@ -64,7 +64,7 @@ class SettingsActivity : Activity() {
             }
             // `--ei fps 30|24|15` sets the top frame rate.
             if (intent.hasExtra("fps")) prefs.edit().putInt(Prefs.KEY_MAX_FPS, intent.getIntExtra("fps", Prefs.DEFAULT_MAX_FPS)).apply()
-            // `--es scene cape_town|savanna|jhb_city` switches the landscape.
+            // `--es scene cape_town|savanna|jhb_city|altron_hq` switches the landscape.
             intent.getStringExtra("scene")?.let { prefs.edit().putString(Prefs.KEY_SCENE, it).apply() }
             // `--ez geese true` sends a skein of geese over the savanna now.
             if (intent.getBooleanExtra("geese", false)) {
@@ -191,8 +191,8 @@ class SettingsActivity : Activity() {
     }
 
     private fun buildSceneSpinner(): Spinner {
-        val labels = listOf("Cape Town — Table Bay", "Savanna — the bushveld", "Jhb City — Hillbrow skyline")
-        val values = listOf(Scenes.CAPE_TOWN, Scenes.SAVANNA, Scenes.JHB)
+        val labels = listOf("Cape Town — Table Bay", "Savanna — the bushveld", "Jhb City — Hillbrow skyline", "Altron — head office")
+        val values = listOf(Scenes.CAPE_TOWN, Scenes.SAVANNA, Scenes.JHB, Scenes.ALTRON)
         return Spinner(this).apply {
             adapter = ArrayAdapter(this@SettingsActivity, android.R.layout.simple_spinner_dropdown_item, labels)
             setSelection(values.indexOf(Prefs.scene(this@SettingsActivity)).coerceAtLeast(0), false)

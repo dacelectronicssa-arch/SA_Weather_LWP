@@ -191,6 +191,7 @@ class WeatherScene(
         when (cfg.scene) {
             Scenes.SAVANNA -> SavannaLandscape(cfg, width, height, wildlife)
             Scenes.JHB -> JhbCityLandscape(cfg, width, height)
+            Scenes.ALTRON -> AltronLandscape(cfg, width, height)
             else -> CapeTownLandscape(cfg, width, height, dp)
         }
 

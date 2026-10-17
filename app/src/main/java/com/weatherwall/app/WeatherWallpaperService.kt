@@ -204,6 +204,18 @@ class WeatherWallpaperService : WallpaperService() {
                 33_000L to { renderer.launchGeeseNow() },
                 38_000L to weather("THUNDERSTORM:day", afternoon),
                 46_000L to night,
+            ) else if (scene == Scenes.ALTRON) listOf<Pair<Long, () -> Unit>>(
+                // Altron head office: the sky's weather over the building, hadedas, and the
+                // lights coming on for the night.
+                0L to weather("CLEAR:day", afternoon),
+                3_000L to { renderer.launchBirdsNow() },
+                8_000L to weather("PARTLY_CLOUDY:day", afternoon),
+                16_000L to weather("CLOUDY:day", afternoon),
+                20_500L to weather("OVERCAST:day", afternoon),
+                24_000L to weather("FOG:day", afternoon),
+                30_000L to weather("RAIN:day", afternoon),
+                38_000L to weather("THUNDERSTORM:day", afternoon),
+                46_000L to night,
             ) else if (scene == Scenes.JHB) listOf<Pair<Long, () -> Unit>>(
                 // Jhb City: a pigeon flock's full visit (arrive, wheel, rooftops, leave) spans the
                 // minute; 737s in different liveries keep crossing; hadedas twice.

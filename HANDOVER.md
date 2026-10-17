@@ -22,6 +22,7 @@ State as of 14 October 2026. Read this before starting work in a new chat.
 | `Cape-Town_Savanna` | Cape Town and Savanna |
 | `Jhb-City` | All three scenes |
 | **`Battery-Optimize`** | **The current working branch.** All three scenes, plus the battery work and every feature listed below. Pushed and clean. |
+| `Altron-HQ` | All three scenes plus a fourth, **Altron — head office** (`render/AltronLandscape.kt`), branched from the cloud-levels work on GitHub. |
 | `Rugby` | Has no rugby work: it points at an older `Battery-Optimize` commit. A rugby scene was planned and then cancelled. Whether to delete the branch is still open, so ask the user. |
 
 The user asks for a new branch for each new scene.
@@ -51,6 +52,17 @@ The user asks for a new branch for each new scene.
 - **Demo mode:** `runDemo()` in `WeatherWallpaperService.kt` plays a 60-second tour suited to each scene.
 
 ## Code map (`app/src/main/java/com/weatherwall/app/`)
+
+### Altron head office scene (branch `Altron-HQ`)
+
+- `render/AltronLandscape.kt`, with its settings in `AltronDesign`. The building is laid out in the reference photo's pixels (747 × 1042), using the photo's two-point perspective: the near corner, a left and a right vanishing point on eye level, and the long wall's bays spaced evenly in inverse distance.
+- The scene has three looks:
+  - Daylight colours.
+  - The photo's dusk colours, from twilight.
+  - Night: the dusk colours darkened, with the sign, carport lamps and foyer lit.
+- The ALTRON wordmark is drawn as strokes and mapped onto the wall with `Matrix.setPolyToPoly`. The A has no crossbar, and the T has a teal flash on the left.
+- `AltronDesign.ZOOM` controls the framing: 1 fits the photo's full width; above 1 zooms in on `FOCUS_X`.
+- Scene id: `altron_hq`.
 
 ### Engine and settings
 
