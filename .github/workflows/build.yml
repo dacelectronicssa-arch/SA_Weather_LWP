@@ -3,8 +3,12 @@ name: Build APK
 on:
   push:
     branches: ["**"]
+    paths-ignore: ["apk/**"]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -26,3 +30,18 @@ jobs:
         with:
           name: weather-wallpaper-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      # Put the tested APK in the repo, at apk/WeatherWallpaper-<branch>.apk, so it can be
+      # downloaded straight from the branch.
+      - name: Commit the APK to the branch
+        if: github.event_name == 'push'
+        run: |
+          mkdir -p apk
+          name="WeatherWallpaper-${GITHUB_REF_NAME//\//-}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "apk/$name"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "apk/$name"
+          if git diff --cached --quiet; then echo "APK unchanged"; exit 0; fi
+          git commit -m "Build APK for ${GITHUB_SHA::7} [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
